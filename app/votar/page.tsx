@@ -1,0 +1,280 @@
+
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { Header } from '@/components/header'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Vote, CheckCircle, X, Circle } from 'lucide-react'
+import { toast } from 'react-hot-toast'
+
+export default function VotingPage() {
+  const { data: session } = useSession()
+  const [activeVoting, setActiveVoting] = useState<any>(null)
+  const [userVote, setUserVote] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (session?.user) {
+      fetchActiveVoting()
+      const interval = setInterval(fetchActiveVoting, 3000)
+      return () => clearInterval(interval)
+    }
+  }, [session])
+
+  const fetchActiveVoting = async () => {
+    try {
+      const response = await fetch('/api/admin/voting')
+      if (response.ok) {
+        const data = await response.json()
+        setActiveVoting(data.activeVoting)
+        
+        // Buscar se o usuário já votou
+        if (data.activeVoting) {
+          const votesResponse = await fetch(
+            `/api/vote?type=${data.activeVoting.type}&itemId=${data.activeVoting.id}`
+          )
+          if (votesResponse.ok) {
+            const votesData = await votesResponse.json()
+            const existingVote = votesData.votes.find((vote: any) => vote.user.id === session?.user?.id)
+            setUserVote(existingVote?.voteType || null)
+          }
+        } else {
+          setUserVote(null)
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao buscar votação ativa:', error)
+    }
+  }
+
+  const handleVote = async (voteType: 'YES' | 'NO' | 'ABSTENTION') => {
+    if (!activeVoting || !session?.user) return
+
+    setLoading(true)
+    try {
+      const response = await fetch('/api/vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: activeVoting.type,
+          itemId: activeVoting.id,
+          voteType
+        })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        setUserVote(voteType)
+        toast.success(`✅ ${result.message}`)
+        await fetchActiveVoting()
+      } else {
+        const error = await response.json()
+        toast.error(`❌ ${error.error}`)
+      }
+    } catch (error) {
+      toast.error('❌ Erro de conexão ao registrar voto')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="container max-w-4xl mx-auto px-4 py-8">
+          <Card>
+            <CardContent className="p-8 text-center">
+              <p className="text-lg text-gray-600">
+                Você precisa estar logado como vereador para votar.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  if (session.user.role !== 'COUNCILOR' && session.user.role !== 'ADMIN') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="container max-w-4xl mx-auto px-4 py-8">
+          <Card>
+            <CardContent className="p-8 text-center">
+              <p className="text-lg text-gray-600">
+                Apenas vereadores podem acessar esta página.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+      
+      <div className="container max-w-4xl mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Sistema de Votação
+          </h1>
+          <p className="text-gray-600">
+            Registre seu voto nas matérias e documentos em votação
+          </p>
+        </div>
+
+        {!activeVoting ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Vote className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                Nenhuma votação ativa
+              </h3>
+              <p className="text-gray-600">
+                Aguarde até que uma nova votação seja iniciada pela mesa diretora.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Vote className="h-6 w-6 text-red-600" />
+                <CardTitle className="text-red-800">
+                  🗳️ VOTAÇÃO EM ANDAMENTO
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Informações da votação */}
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-red-800 mb-2">
+                  {activeVoting.title}
+                </h3>
+                {activeVoting.description && (
+                  <p className="text-red-700 mb-3">
+                    {activeVoting.description}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <Badge variant="outline" className="border-red-300 text-red-700">
+                    {activeVoting.type === 'matter' ? 'MATÉRIA' : 'DOCUMENTO'}
+                  </Badge>
+                  {activeVoting.documentType && (
+                    <Badge variant="outline" className="border-red-300 text-red-700">
+                      {activeVoting.documentType}
+                    </Badge>
+                  )}
+                  {activeVoting.author && (
+                    <Badge variant="outline" className="border-red-300 text-red-700">
+                      Autor: {activeVoting.author}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* Status atual dos votos */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {activeVoting.votes.yes}
+                  </div>
+                  <div className="text-sm text-green-700">Favoráveis</div>
+                </div>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-red-600">
+                    {activeVoting.votes.no}
+                  </div>
+                  <div className="text-sm text-red-700">Contrários</div>
+                </div>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-yellow-600">
+                    {activeVoting.votes.abstention}
+                  </div>
+                  <div className="text-sm text-yellow-700">Abstenções</div>
+                </div>
+              </div>
+
+              {/* Seu voto atual */}
+              {userVote && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="h-5 w-5 text-blue-600" />
+                    <span className="font-semibold text-blue-800">Seu voto atual:</span>
+                    <Badge className={
+                      userVote === 'YES' ? 'bg-green-600' :
+                      userVote === 'NO' ? 'bg-red-600' : 'bg-yellow-600'
+                    }>
+                      {userVote === 'YES' ? '✅ FAVORÁVEL' :
+                       userVote === 'NO' ? '❌ CONTRÁRIO' : '⚪ ABSTENÇÃO'}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-blue-700 mt-2">
+                    Você pode alterar seu voto até que a votação seja encerrada.
+                  </p>
+                </div>
+              )}
+
+              {/* Botões de votação */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Button
+                  onClick={() => handleVote('YES')}
+                  disabled={loading}
+                  className={`h-16 text-lg ${
+                    userVote === 'YES'
+                      ? 'bg-green-700 hover:bg-green-800'
+                      : 'bg-green-600 hover:bg-green-700'
+                  }`}
+                >
+                  <CheckCircle className="h-6 w-6 mr-2" />
+                  FAVORÁVEL
+                </Button>
+                <Button
+                  onClick={() => handleVote('NO')}
+                  disabled={loading}
+                  className={`h-16 text-lg ${
+                    userVote === 'NO'
+                      ? 'bg-red-700 hover:bg-red-800'
+                      : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  <X className="h-6 w-6 mr-2" />
+                  CONTRÁRIO
+                </Button>
+                <Button
+                  onClick={() => handleVote('ABSTENTION')}
+                  disabled={loading}
+                  variant="outline"
+                  className={`h-16 text-lg border-2 ${
+                    userVote === 'ABSTENTION'
+                      ? 'border-yellow-600 bg-yellow-50 text-yellow-800'
+                      : 'border-yellow-500 hover:bg-yellow-50 text-yellow-700'
+                  }`}
+                >
+                  <Circle className="h-6 w-6 mr-2" />
+                  ABSTENÇÃO
+                </Button>
+              </div>
+
+              {/* Informações adicionais */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Total de votantes: {activeVoting.totalVoters}</span>
+                  <span>
+                    Votaram: {activeVoting.votes.yes + activeVoting.votes.no + activeVoting.votes.abstention}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  )
+}

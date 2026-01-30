@@ -1,0 +1,338 @@
+// Sistema de Votação Eletrônica para Câmara de Vereadores
+// Schema Prisma com todas as entidades necessárias
+
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/sistema_votacao_camara/app/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// Enums para os tipos de dados
+enum UserRole {
+  ADMIN
+  PRESIDENT
+  COUNCILOR
+}
+
+enum SessionStatus {
+  SCHEDULED
+  PEQUENO_EXPEDIENTE
+  GRANDE_EXPEDIENTE
+  ORDEM_DO_DIA
+  CONSIDERACOES_FINAIS
+  TRIBUNA_LIVE
+  CLOSED
+}
+
+enum VoteType {
+  YES
+  NO
+  ABSTENTION
+}
+
+enum MatterStatus {
+  PENDING
+  VOTING
+  APPROVED
+  REJECTED
+  ABSTAINED
+}
+
+enum DocumentType {
+  ATA_ANTERIOR
+  DISPENSA_ATA
+  REQUERIMENTO
+  PROJETO
+  PROCESSO
+}
+
+enum SpeechType {
+  CONSIDERACOES_FINAIS
+  TRIBUNA_LIVE
+}
+
+// Modelo principal de usuários (vereadores, presidente, admin)
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  password        String
+  fullName        String
+  role            UserRole  @default(COUNCILOR)
+  isActive        Boolean   @default(true)
+  photoUrl        String?   // URL da foto do vereador
+  party           String?   // Sigla do partido (ex: PSD, MDB)
+  partyLogoUrl    String?   // URL do logo do partido
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relacionamentos NextAuth
+  accounts        Account[]
+  sessions        Session[]
+
+  // Relacionamentos do sistema
+  attendances         Attendance[]
+  votes               Vote[]
+  createdSessions     VotingSession[]      @relation("SessionCreator")
+  createdMatters      Matter[]             @relation("MatterCreator")
+  createdDocuments    Document[]           @relation("DocumentCreator")
+  documentVotes       DocumentVote[]
+  speechRequests      SpeechRequest[]      @relation("SpeechRequests")
+  legislativeProcesses LegislativeProcess[] @relation("AuthoredProcesses")
+
+  @@map("users")
+}
+
+// Sessões de votação (reuniões da câmara)
+model VotingSession {
+  id          String        @id @default(cuid())
+  title       String
+  description String?
+  status      SessionStatus @default(SCHEDULED)
+  scheduledAt DateTime
+  startedAt   DateTime?
+  endedAt     DateTime?
+  quorum      Int           @default(7) // Quórum mínimo (maioria simples)
+  
+  // Campos para timer e controle do painel público
+  sessionNumber    String?       // Número da sessão para exibição
+  date            DateTime      @default(now()) // Data da sessão
+  timerStartedAt  DateTime?     // Quando o timer foi iniciado
+  timerDuration   Int?          // Duração do timer em segundos
+  timerPhase      String?       // Fase do timer ativo
+  
+  // Controle de quórum/presença
+  attendanceStartedAt DateTime? // Quando a chamada foi iniciada
+  attendanceEndedAt   DateTime? // Quando a chamada foi encerrada
+  isAttendanceOpen    Boolean   @default(false) // Se está aberta para registro de presença
+  
+  // Controle de inscrições para fala
+  isSpeechRequestsOpen Boolean  @default(false) // Se as inscrições estão abertas
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Criador da sessão (Presidente)
+  createdBy   String
+  creator     User          @relation("SessionCreator", fields: [createdBy], references: [id])
+
+  // Relacionamentos
+  attendances    Attendance[]
+  matters        SessionMatter[]
+  documents      Document[]
+  speechRequests SpeechRequest[]
+  phases         SessionPhase[]
+
+  @@map("voting_sessions")
+}
+
+// Pautas/matérias para votação
+model Matter {
+  id          String       @id @default(cuid())
+  title       String
+  description String
+  status      MatterStatus @default(PENDING)
+  orderIndex  Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Criador da matéria
+  createdBy   String
+  creator     User         @relation("MatterCreator", fields: [createdBy], references: [id])
+
+  // Relacionamentos
+  sessions    SessionMatter[]
+  votes       Vote[]
+
+  @@map("matters")
+}
+
+// Relacionamento entre sessões e matérias (uma sessão pode ter várias pautas)
+model SessionMatter {
+  id        String   @id @default(cuid())
+  sessionId String
+  matterId  String
+  orderIndex Int     @default(0)
+  createdAt DateTime @default(now())
+
+  session   VotingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  matter    Matter        @relation(fields: [matterId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, matterId])
+  @@map("session_matters")
+}
+
+// Registro de presença dos vereadores em cada sessão
+model Attendance {
+  id        String   @id @default(cuid())
+  sessionId String
+  userId    String
+  isPresent Boolean  @default(false)
+  arrivedAt DateTime?
+  createdAt DateTime @default(now())
+
+  session   VotingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@map("attendances")
+}
+
+// Registro de votos
+model Vote {
+  id        String   @id @default(cuid())
+  matterId  String
+  userId    String
+  voteType  VoteType
+  votedAt   DateTime @default(now())
+
+  matter    Matter   @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([matterId, userId])
+  @@map("votes")
+}
+
+// Documentos do Pequeno e Grande Expediente
+model Document {
+  id          String       @id @default(cuid())
+  sessionId   String
+  title       String
+  description String?
+  content     String?      // Conteúdo completo do documento
+  author      String?      // Autor/responsável pelo documento
+  type        DocumentType
+  orderIndex  Int          @default(0)
+  isApproved  Boolean?     // null = não votado, true = aprovado, false = rejeitado
+  isBeingRead Boolean      @default(false) // Se está sendo lido no momento
+  isVoting    Boolean      @default(false) // Se está em votação no momento
+  isOrdemDoDia Boolean     @default(false) // Se foi movido para Ordem do Dia para votação
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Criador do documento
+  createdBy   String
+  creator     User         @relation("DocumentCreator", fields: [createdBy], references: [id])
+
+  session     VotingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  votes       DocumentVote[]
+
+  @@map("documents")
+}
+
+// Votos nos documentos (ata anterior, dispensa, etc.)
+model DocumentVote {
+  id          String   @id @default(cuid())
+  documentId  String
+  userId      String
+  voteType    VoteType
+  votedAt     DateTime @default(now())
+
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, userId])
+  @@map("document_votes")
+}
+
+// Cadastro para falar nas Considerações Finais
+model SpeechRequest {
+  id          String     @id @default(cuid())
+  sessionId   String
+  userId      String?    // null se for cidadão
+  citizenName String?       // nome do cidadão se não for vereador
+  citizenProfession String? // Profissão do cidadão
+  type        SpeechType
+  subject     String
+  orderIndex  Int        @default(0)
+  isApproved  Boolean    @default(false)
+  hasSpoken   Boolean    @default(false)
+  isSpeaking  Boolean    @default(false) // Se está falando no momento
+  timeLimit   Int?       // Tempo limite em minutos
+  startedAt   DateTime?  // Quando começou a falar
+  endedAt     DateTime?  // Quando terminou de falar
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  session     VotingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user        User?         @relation("SpeechRequests", fields: [userId], references: [id], onDelete: Cascade)
+  legislativeProcesses LegislativeProcess[] // Processos legislativos do vereador
+
+  @@map("speech_requests")
+}
+
+// Processos Legislativos criados pelos vereadores
+model LegislativeProcess {
+  id              String   @id @default(cuid())
+  userId          String   // Vereador autor
+  speechRequestId String?  // Vinculado a uma solicitação de fala
+  number          String   // Número do processo (ex: 001/2024)
+  title           String   // Título/ementa
+  description     String   // Descrição detalhada
+  type            String   // Tipo: PROJETO_LEI, REQUERIMENTO, INDICACAO, etc.
+  status          String   @default("EM_TRAMITACAO") // EM_TRAMITACAO, APROVADO, REJEITADO
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  author          User             @relation("AuthoredProcesses", fields: [userId], references: [id])
+  speechRequest   SpeechRequest?   @relation(fields: [speechRequestId], references: [id])
+
+  @@map("legislative_processes")
+}
+
+// Histórico das fases da sessão
+model SessionPhase {
+  id        String        @id @default(cuid())
+  sessionId String
+  phase     SessionStatus
+  startedAt DateTime      @default(now())
+  endedAt   DateTime?
+
+  session   VotingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("session_phases")
+}
+
+// Modelos NextAuth necessários
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}

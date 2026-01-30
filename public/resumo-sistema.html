@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Votação Eletrônica - Resumo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 20mm;
+      background: white;
+    }
+    @media print {
+      body { padding: 15mm; }
+      .page-break { page-break-before: always; }
+    }
+    .header {
+      text-align: center;
+      border-bottom: 3px solid #2563eb;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      color: #1e40af;
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+    .header .subtitle {
+      color: #64748b;
+      font-size: 14px;
+    }
+    h2 {
+      color: #1e40af;
+      font-size: 18px;
+      margin: 25px 0 15px 0;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    h3 {
+      color: #334155;
+      font-size: 15px;
+      margin: 20px 0 10px 0;
+    }
+    h4 {
+      color: #475569;
+      font-size: 13px;
+      margin: 15px 0 8px 0;
+    }
+    p { margin-bottom: 10px; font-size: 12px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+      font-size: 11px;
+    }
+    th, td {
+      border: 1px solid #e2e8f0;
+      padding: 8px 10px;
+      text-align: left;
+    }
+    th {
+      background: #f1f5f9;
+      font-weight: 600;
+      color: #334155;
+    }
+    tr:nth-child(even) { background: #f8fafc; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-purple { background: #f3e8ff; color: #7c3aed; }
+    .badge-orange { background: #ffedd5; color: #c2410c; }
+    ul, ol {
+      margin: 10px 0 10px 20px;
+      font-size: 12px;
+    }
+    li { margin-bottom: 5px; }
+    code {
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Consolas', monospace;
+      font-size: 11px;
+    }
+    pre {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 15px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 10px;
+      line-height: 1.5;
+      margin: 15px 0;
+    }
+    .section {
+      page-break-inside: avoid;
+      margin-bottom: 20px;
+    }
+    .two-cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 15px;
+    }
+    .card h4 {
+      margin-top: 0;
+      color: #1e40af;
+    }
+    .flow-diagram {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 8px;
+      padding: 15px;
+      text-align: center;
+      font-family: monospace;
+      font-size: 11px;
+    }
+    .page-break { page-break-before: always; }
+    .footer {
+      margin-top: 40px;
+      padding-top: 15px;
+      border-top: 1px solid #e2e8f0;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 10px;
+    }
+    .print-btn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+    }
+    .print-btn:hover { background: #1d4ed8; }
+    @media print { .print-btn { display: none; } }
+  </style>
+</head>
+<body>
+
+<button class="print-btn" onclick="window.print()">📄 Salvar como PDF</button>
+
+<div class="header">
+  <h1>🏛️ Sistema de Votação Eletrônica</h1>
+  <div class="subtitle">Câmara de Vereadores - Documentação Técnica e Funcional</div>
+</div>
+
+<h2>📋 RESUMO FUNCIONAL</h2>
+
+<div class="section">
+  <h3>Visão Geral</h3>
+  <p>Sistema completo para gestão de sessões legislativas em tempo real, permitindo controle de votações, pronunciamentos e exibição pública das atividades da Câmara Municipal.</p>
+</div>
+
+<div class="section">
+  <h3>Perfis de Usuário</h3>
+  <table>
+    <tr>
+      <th>Perfil</th>
+      <th>Acesso</th>
+      <th>Funções Principais</th>
+    </tr>
+    <tr>
+      <td><span class="badge badge-blue">Administrador</span></td>
+      <td><code>/admin</code></td>
+      <td>Controle total da sessão, gestão de usuários, documentos e votações</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-purple">Presidente</span></td>
+      <td><code>/president</code></td>
+      <td>Condução da sessão e controle de fases</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-green">Vereador</span></td>
+      <td><code>/councilor</code></td>
+      <td>Votação, registro de presença, solicitação de fala</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-orange">Público</span></td>
+      <td><code>/painel</code></td>
+      <td>Visualização em tempo real (sem necessidade de login)</td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>Fases da Sessão Legislativa</h3>
+  <ol>
+    <li><strong>Pequeno Expediente</strong> - Leitura de ata e documentos iniciais</li>
+    <li><strong>Grande Expediente</strong> - Requerimentos e projetos</li>
+    <li><strong>Ordem do Dia</strong> - Votações de projetos e requerimentos</li>
+    <li><strong>Considerações Finais</strong> - Pronunciamentos dos vereadores</li>
+    <li><strong>Tribuna Livre</strong> - Manifestações de cidadãos da comunidade</li>
+  </ol>
+</div>
+
+<div class="section">
+  <h3>Funcionalidades Principais</h3>
+  
+  <div class="two-cols">
+    <div class="card">
+      <h4>📅 Gestão de Sessões</h4>
+      <ul>
+        <li>Criação automática com numeração sequencial (ex: 001/2026)</li>
+        <li>Controle de fases com transição visual</li>
+        <li>Abertura/fechamento de inscrições para fala</li>
+        <li>Histórico completo de sessões anteriores</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>🗳️ Sistema de Votação</h4>
+      <ul>
+        <li>Votação nominal (Sim / Não / Abstenção)</li>
+        <li>Exibição em tempo real no painel público</li>
+        <li>Contagem automática de votos</li>
+        <li>Botão contextual "Iniciar/Encerrar Votação"</li>
+      </ul>
+    </div>
+  </div>
+  
+  <div class="two-cols" style="margin-top: 15px;">
+    <div class="card">
+      <h4>🎤 Pronunciamentos</h4>
+      <ul>
+        <li><strong>Considerações Finais:</strong> Vereadores se inscrevem ou são inscritos pelo admin</li>
+        <li><strong>Tribuna Livre:</strong> Admin cadastra cidadãos com nome, profissão e assunto</li>
+        <li>Controle de tempo com cronômetro (1, 5, 10 min ou personalizado)</li>
+        <li>Barra de progresso visual com indicadores</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>📺 Painel Público</h4>
+      <ul>
+        <li>Atualização em tempo real (polling a cada 3s)</li>
+        <li>Exibe documento em leitura e votação ativa</li>
+        <li>Mostra orador atual com cronômetro</li>
+        <li>Design moderno com animações suaves</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="page-break"></div>
+
+<h2>🔧 RESUMO TÉCNICO</h2>
+
+<div class="section">
+  <h3>Stack Tecnológica</h3>
+  <table>
+    <tr>
+      <th>Camada</th>
+      <th>Tecnologia</th>
+      <th>Versão</th>
+    </tr>
+    <tr><td>Frontend</td><td>Next.js (App Router), React, TypeScript</td><td>14.2.28 / 18.2.0</td></tr>
+    <tr><td>UI Components</td><td>Tailwind CSS, Radix UI, Lucide Icons</td><td>3.3.3</td></tr>
+    <tr><td>Backend</td><td>Next.js API Routes</td><td>14.2.28</td></tr>
+    <tr><td>Banco de Dados</td><td>PostgreSQL com Prisma ORM</td><td>6.7.0</td></tr>
+    <tr><td>Autenticação</td><td>NextAuth.js (Credentials Provider)</td><td>4.24.11</td></tr>
+    <tr><td>Estado</td><td>React Hooks (useState, useEffect)</td><td>-</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>Estrutura de Diretórios</h3>
+  <pre>/app
+├── app/
+│   ├── admin/page.tsx        # Dashboard administrativo (sidebar)
+│   ├── councilor/page.tsx    # Dashboard do vereador
+│   ├── president/page.tsx    # Dashboard do presidente
+│   ├── painel/page.tsx       # Painel público (sem auth)
+│   ├── votar/page.tsx        # Interface de votação
+│   └── api/                   # 20+ rotas de API
+├── components/
+│   ├── admin-dashboard.tsx    # ~2800 linhas
+│   ├── public-display-panel.tsx
+│   └── ui/                    # 40+ componentes UI
+├── prisma/
+│   └── schema.prisma          # 8 modelos de dados
+└── lib/
+    ├── auth.ts                # Config NextAuth
+    └── db.ts                  # Cliente Prisma</pre>
+</div>
+
+<div class="section">
+  <h3>Modelos de Dados (Prisma Schema)</h3>
+  <pre>model User {
+  id, email, password, fullName
+  role: ADMIN | PRESIDENT | COUNCILOR
+}
+
+model VotingSession {
+  id, sessionNumber, status, scheduledAt
+  isSpeechRequestsOpen, documents[], votes[]
+}
+
+model Document {
+  id, title, type, content, phase
+  isBeingRead, isVoting, isOrdemDoDia
+}
+
+model SpeechRequest {
+  id, userId?, citizenName?, citizenProfession?
+  type: CONSIDERACOES_FINAIS | TRIBUNA_LIVE
+  isApproved, isSpeaking, timeLimit, startedAt
+}
+
+model Vote {
+  userId, documentId, sessionId
+  vote: YES | NO | ABSTAIN
+}</pre>
+</div>
+
+<div class="section">
+  <h3>APIs Principais</h3>
+  <table>
+    <tr>
+      <th>Endpoint</th>
+      <th>Método</th>
+      <th>Função</th>
+    </tr>
+    <tr><td><code>/api/admin/create-session</code></td><td>POST</td><td>Criar nova sessão</td></tr>
+    <tr><td><code>/api/admin/voting</code></td><td>POST/PATCH</td><td>Iniciar/encerrar votação</td></tr>
+    <tr><td><code>/api/admin/speech-control</code></td><td>POST/PATCH</td><td>Controle de pronunciamentos</td></tr>
+    <tr><td><code>/api/admin/set-reading-document</code></td><td>POST</td><td>Exibir documento no painel</td></tr>
+    <tr><td><code>/api/speech-request</code></td><td>GET/POST</td><td>Listar/criar inscrições</td></tr>
+    <tr><td><code>/api/vote</code></td><td>POST</td><td>Registrar voto</td></tr>
+    <tr><td><code>/api/public/current-session</code></td><td>GET</td><td>Status público da sessão</td></tr>
+    <tr><td><code>/api/public/speech-requests</code></td><td>GET</td><td>Oradores aprovados</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>Fluxo de Dados em Tempo Real</h3>
+  <div class="flow-diagram">
+Admin Dashboard → API Route → PostgreSQL (Prisma)<br>
+                                    ↓<br>
+Painel Público ← Polling (3s) ← API Pública (/api/public/*)
+  </div>
+  <p style="margin-top: 10px; font-size: 11px; color: #64748b;">O sistema usa polling no painel público para atualização em tempo real, consultando endpoints públicos a cada 3 segundos.</p>
+</div>
+
+<div class="section">
+  <h3>Credenciais de Acesso (Ambiente de Teste)</h3>
+  <table>
+    <tr><th>Perfil</th><th>Email</th><th>Senha</th></tr>
+    <tr><td>Administrador</td><td><code>admin@camara.gov.br</code></td><td><code>admin123</code></td></tr>
+    <tr><td>Presidente</td><td><code>presidente@camara.gov.br</code></td><td><code>presidente123</code></td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>URLs de Acesso</h3>
+  <table>
+    <tr><th>Ambiente</th><th>URL</th></tr>
+    <tr><td>Produção</td><td><code>https://votacao.abacusai.app</code></td></tr>
+    <tr><td>Desenvolvimento</td><td><code>http://localhost:3000</code></td></tr>
+  </table>
+</div>
+
+<div class="footer">
+  Sistema de Votação Eletrônica para Câmara de Vereadores<br>
+  Documento gerado em Janeiro de 2026
+</div>
+
+</body>
+</html>
