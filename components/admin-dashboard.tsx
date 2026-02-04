@@ -940,7 +940,7 @@ function VereadoresTab() {
 
       const { uploadUrl, publicUrl } = await presignedRes.json()
 
-      // 2. Fazer upload diretamente para o S3
+      // 2. Fazer upload
       const uploadRes = await fetch(uploadUrl, {
         method: 'PUT',
         headers: { 'Content-Type': file.type },

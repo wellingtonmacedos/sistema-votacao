@@ -1,0 +1,78 @@
+warning: in the working copy of 'prisma/schema.prisma', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/prisma/schema.prisma b/prisma/schema.prisma[m
+[1mindex 94426df..77b11ec 100644[m
+[1m--- a/prisma/schema.prisma[m
+[1m+++ b/prisma/schema.prisma[m
+[36m@@ -3,13 +3,13 @@[m
+ [m
+ generator client {[m
+     provider = "prisma-client-js"[m
+[31m-    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"][m
+[31m-    output = "/home/ubuntu/sistema_votacao_camara/app/node_modules/.prisma/client"[m
+[32m+[m[41m    [m
+[32m+[m[41m    [m
+ }[m
+ [m
+ datasource db {[m
+[31m-    provider = "postgresql"[m
+[31m-    url      = env("DATABASE_URL")[m
+[32m+[m[32m    provider = "sqlite"[m
+[32m+[m[32m    url      = "file:./dev.db"[m
+ }[m
+ [m
+ // Enums para os tipos de dados[m
+[36m@@ -304,12 +304,12 @@[m [mmodel Account {[m
+   type              String[m
+   provider          String[m
+   providerAccountId String[m
+[31m-  refresh_token     String? @db.Text[m
+[31m-  access_token      String? @db.Text[m
+[32m+[m[32m  refresh_token     String?[m[41m [m
+[32m+[m[32m  access_token      String?[m[41m [m
+   expires_at        Int?[m
+   token_type        String?[m
+   scope             String?[m
+[31m-  id_token          String? @db.Text[m
+[32m+[m[32m  id_token          String?[m[41m [m
+   session_state     String?[m
+ [m
+   user User @relation(fields: [userId], references: [id], onDelete: Cascade)[m
+warning: in the working copy of 'prisma/schema.prisma', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/prisma/schema.prisma b/prisma/schema.prisma[m
+[1mindex 94426df..77b11ec 100644[m
+[1m--- a/prisma/schema.prisma[m
+[1m+++ b/prisma/schema.prisma[m
+[36m@@ -3,13 +3,13 @@[m
+ [m
+ generator client {[m
+     provider = "prisma-client-js"[m
+[31m-    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"][m
+[31m-    output = "/home/ubuntu/sistema_votacao_camara/app/node_modules/.prisma/client"[m
+[32m+[m[41m    [m
+[32m+[m[41m    [m
+ }[m
+ [m
+ datasource db {[m
+[31m-    provider = "postgresql"[m
+[31m-    url      = env("DATABASE_URL")[m
+[32m+[m[32m    provider = "sqlite"[m
+[32m+[m[32m    url      = "file:./dev.db"[m
+ }[m
+ [m
+ // Enums para os tipos de dados[m
+[36m@@ -304,12 +304,12 @@[m [mmodel Account {[m
+   type              String[m
+   provider          String[m
+   providerAccountId String[m
+[31m-  refresh_token     String? @db.Text[m
+[31m-  access_token      String? @db.Text[m
+[32m+[m[32m  refresh_token     String?[m[41m [m
+[32m+[m[32m  access_token      String?[m[41m [m
+   expires_at        Int?[m
+   token_type        String?[m
+   scope             String?[m
+[31m-  id_token          String? @db.Text[m
+[32m+[m[32m  id_token          String?[m[41m [m
+   session_state     String?[m
+ [m
+   user User @relation(fields: [userId], references: [id], onDelete: Cascade)[m

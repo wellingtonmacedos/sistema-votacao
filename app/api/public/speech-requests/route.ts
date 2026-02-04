@@ -39,6 +39,9 @@ export async function GET() {
         user: {
           select: {
             fullName: true,
+            photoUrl: true,
+            party: true,
+            partyLogoUrl: true
           },
         },
       },
@@ -51,7 +54,9 @@ export async function GET() {
     const formatRequest = (request: any) => ({
       id: request.id,
       name: request.user?.fullName || request.citizenName || 'N/A',
-      party: 'Vereador',
+      party: request.user?.party || 'Vereador',
+      partyLogoUrl: request.user?.partyLogoUrl || null,
+      photoUrl: request.user?.photoUrl || null,
       profession: request.citizenProfession || null,
       subject: request.subject,
       isSpeaking: request.isSpeaking,

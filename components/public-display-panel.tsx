@@ -80,6 +80,8 @@ interface SpeechRequestData {
   id: string
   name: string
   party: string
+  partyLogoUrl?: string | null
+  photoUrl?: string | null
   profession: string | null
   subject: string
   isSpeaking: boolean
@@ -613,21 +615,34 @@ export function PublicDisplayPanel() {
                           <div className="relative p-5 text-center">
                             {/* Avatar com gradiente e sombra */}
                             <div className="relative mb-4">
-                              <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg transition-all duration-300 group-hover:shadow-xl ${
+                              <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg transition-all duration-300 group-hover:shadow-xl overflow-hidden ${
                                 userVote
                                   ? userVote.voteType === 'YES' ? 'bg-gradient-to-br from-emerald-500 to-green-600 ring-4 ring-emerald-400/30' :
                                     userVote.voteType === 'NO' ? 'bg-gradient-to-br from-red-500 to-rose-600 ring-4 ring-red-400/30' :
                                     'bg-gradient-to-br from-yellow-500 to-amber-600 ring-4 ring-yellow-400/30'
                                   : 'bg-gradient-to-br from-gray-500 to-slate-600 ring-4 ring-gray-400/20'
                               }`}>
-                                <span className="drop-shadow-sm">
-                                  {attendance.user.fullName.split(' ').map(n => n[0]).slice(0, 2).join('')}
-                                </span>
+                                {attendance.user.photoUrl ? (
+                                  <img 
+                                    src={attendance.user.photoUrl} 
+                                    alt={attendance.user.fullName}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      // Fallback para iniciais se a imagem falhar
+                                      e.currentTarget.style.display = 'none';
+                                      e.currentTarget.parentElement!.innerText = attendance.user.fullName.split(' ').map(n => n[0]).slice(0, 2).join('');
+                                    }}
+                                  />
+                                ) : (
+                                  <span className="drop-shadow-sm">
+                                    {attendance.user.fullName.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                                  </span>
+                                )}
                               </div>
                               
                               {/* Pulse animation para quem já votou */}
                               {userVote && (
-                                <div className={`absolute inset-0 rounded-full animate-ping ${
+                                <div className={`absolute inset-0 rounded-full animate-ping pointer-events-none ${
                                   userVote.voteType === 'YES' ? 'bg-emerald-400/30' :
                                   userVote.voteType === 'NO' ? 'bg-red-400/30' :
                                   'bg-yellow-400/30'
@@ -635,15 +650,48 @@ export function PublicDisplayPanel() {
                               )}
                               
                               {/* Status badge no avatar */}
-                              <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg ${voteBadgeColor}`}>
+                              <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg z-10 ${voteBadgeColor}`}>
                                 {voteIcon}
                               </div>
                             </div>
                             
                             {/* Nome do vereador */}
-                            <h4 className="font-bold text-white text-sm mb-2 leading-tight tracking-wide">
+                            <h4 className="font-bold text-white text-sm leading-tight tracking-wide mb-1">
                               {attendance.user.fullName.toUpperCase()}
                             </h4>
+                            
+                            {/* Partido e Logo */}
+                            {attendance.user.party && (
+                              <div className="mb-2 flex items-center justify-center gap-2">
+                                {attendance.user.partyLogoUrl ? (
+                                  <div className="h-6 w-auto bg-white/10 rounded px-1 flex items-center justify-center">
+                                    <img 
+                                      src={attendance.user.partyLogoUrl} 
+                                      alt={`Logo ${attendance.user.party}`}
+                                      className="h-5 w-auto object-contain"
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                        // Fallback para texto se a imagem falhar
+                                        const badge = document.getElementById(`badge-${attendance.user.id}`);
+                                        if (badge) badge.style.display = 'flex';
+                                      }}
+                                    />
+                                    {/* Fallback badge (hidden by default if image loads) */}
+                                    <Badge 
+                                      id={`badge-${attendance.user.id}`}
+                                      variant="outline" 
+                                      className="border-white/30 text-white/90 text-[10px] px-2 py-0 h-5 hidden"
+                                    >
+                                      {attendance.user.party}
+                                    </Badge>
+                                  </div>
+                                ) : (
+                                  <Badge variant="outline" className="border-white/30 text-white/90 text-[10px] px-2 py-0 h-5">
+                                    {attendance.user.party}
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
                             
                             {/* Status do voto */}
                             <div className="mb-3">
@@ -702,8 +750,8 @@ export function PublicDisplayPanel() {
 
         {/* Inscrições para Fala - Considerações Finais */}
         {/* Oculta esta seção se houver pronunciamento ativo na Tribuna Livre */}
-        {/* Mostra apenas quem está falando agora */}
-        {consideracoesFinais.filter(r => r.isSpeaking).length > 0 && !attendanceData?.isAttendanceOpen && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && !tribunaLivre.some(r => r.isSpeaking) && (
+        {/* Mostra lista de inscritos se estiver na fase de considerações finais ou se houver alguém falando */}
+        {((sessionData.status === 'CONSIDERACOES_FINAIS') || consideracoesFinais.some(r => r.isSpeaking)) && !attendanceData?.isAttendanceOpen && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && !tribunaLivre.some(r => r.isSpeaking) && (
           <Card className="lg:col-span-2 bg-white/10 backdrop-blur-sm border-white/20">
             <CardContent className="p-6 h-full">
               <div className="relative mb-8">
@@ -741,10 +789,10 @@ export function PublicDisplayPanel() {
                     <div className="mt-3">
                       <div className="text-right bg-white/10 px-4 py-2 rounded-xl backdrop-blur-sm border border-white/20">
                         <div className="text-2xl font-bold text-white">
-                          {consideracoesFinais.filter(r => r.isSpeaking).length}
+                          {consideracoesFinais.length}
                         </div>
                         <div className="text-xs text-white/80 uppercase tracking-wide">
-                          FALANDO AGORA
+                          TOTAL INSCRITOS
                         </div>
                       </div>
                     </div>
@@ -753,8 +801,14 @@ export function PublicDisplayPanel() {
               </div>
 
               <ScrollArea className="h-[calc(100%-200px)]">
+                {consideracoesFinais.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-white/50 space-y-4">
+                    <Mic className="h-16 w-16 opacity-30" />
+                    <p className="text-xl font-medium">Aguardando inscrições...</p>
+                  </div>
+                ) : (
                 <div className="space-y-4 p-2">
-                  {consideracoesFinais.filter(r => r.isSpeaking).map((request, index) => {
+                  {consideracoesFinais.map((request, index) => {
                     // Determinar cores baseado no status
                     let cardColor = 'from-slate-600/20 via-gray-500/15 to-slate-500/10 border-gray-400/30'
                     let statusText = 'AGUARDANDO'
@@ -805,13 +859,41 @@ export function PublicDisplayPanel() {
                         <div className="relative flex items-center justify-between">
                           {/* Informações do inscrito */}
                           <div className="flex items-center gap-4 flex-1">
-                            {/* Número da ordem */}
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl shadow-lg ${
-                              request.isSpeaking ? 'bg-gradient-to-br from-emerald-500 to-green-600 ring-4 ring-emerald-400/30' :
-                              request.hasSpoken ? 'bg-gradient-to-br from-blue-500 to-indigo-600 ring-4 ring-blue-400/30' :
-                              'bg-gradient-to-br from-gray-500 to-slate-600 ring-4 ring-gray-400/20'
-                            } text-white`}>
-                              {index + 1}
+                            {/* Avatar com Foto e Logo do Partido */}
+                            <div className="relative">
+                              <div className={`w-16 h-16 rounded-full flex items-center justify-center overflow-hidden shadow-lg border-2 ${
+                                request.isSpeaking ? 'border-emerald-400 ring-4 ring-emerald-400/30' :
+                                request.hasSpoken ? 'border-blue-400 ring-4 ring-blue-400/30' :
+                                'border-gray-400 ring-4 ring-gray-400/20'
+                              }`}>
+                                {request.photoUrl ? (
+                                  <img 
+                                    src={request.photoUrl} 
+                                    alt={request.name} 
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                      const fallback = e.currentTarget.parentElement?.querySelector('.fallback-avatar') as HTMLElement;
+                                      if (fallback) fallback.style.display = 'flex';
+                                    }}
+                                  />
+                                ) : null}
+                                
+                                <div className={`fallback-avatar w-full h-full items-center justify-center font-bold text-2xl text-white ${
+                                  request.isSpeaking ? 'bg-gradient-to-br from-emerald-500 to-green-600' :
+                                  request.hasSpoken ? 'bg-gradient-to-br from-blue-500 to-indigo-600' :
+                                  'bg-gradient-to-br from-gray-500 to-slate-600'
+                                } ${request.photoUrl ? 'hidden' : 'flex'}`}>
+                                  {index + 1}
+                                </div>
+                              </div>
+
+                              {/* Logo do Partido */}
+                              {request.partyLogoUrl && (
+                                <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white p-0.5 shadow-md flex items-center justify-center z-10">
+                                  <img src={request.partyLogoUrl} alt="Partido" className="w-full h-full object-contain" />
+                                </div>
+                              )}
                             </div>
                             
                             <div className="flex-1">
@@ -861,6 +943,7 @@ export function PublicDisplayPanel() {
                     )
                   })}
                 </div>
+                )}
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1099,7 +1182,7 @@ export function PublicDisplayPanel() {
         )}
 
         {/* Vereador Falando nas Considerações Finais */}
-        {currentSpeaker && sessionData.status === 'CONSIDERACOES_FINAIS' && !attendanceData?.isAttendanceOpen && (
+        {currentSpeaker && sessionData.status === 'CONSIDERACOES_FINAIS' && !attendanceData?.isAttendanceOpen && false && (
           <Card className="lg:col-span-2 bg-white/10 backdrop-blur-sm border-white/20">
             <CardContent className="p-6 h-full">
               <div className="flex items-center mb-6">
@@ -1226,7 +1309,7 @@ export function PublicDisplayPanel() {
         )}
 
         {/* Painel vazio quando não há conteúdo */}
-        {!readingDocument && !currentSpeaker && !attendanceData?.isAttendanceOpen && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && (
+        {!readingDocument && !currentSpeaker && !attendanceData?.isAttendanceOpen && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && sessionData.status !== 'CONSIDERACOES_FINAIS' && !consideracoesFinais.some(r => r.isSpeaking) && (
           <Card className="lg:col-span-2 bg-white/10 backdrop-blur-sm border-white/20">
             <CardContent className="p-6 h-full flex items-center justify-center">
               <div className="text-center text-white/60">

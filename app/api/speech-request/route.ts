@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
         subject,
         type: type || 'CONSIDERACOES_FINAIS',
         orderIndex: (lastRequest?.orderIndex || 0) + 1,
-        isApproved: session.user.role === 'ADMIN' // Admin aprova automaticamente
+        isApproved: true // Auto-aprovar todas as inscrições
       },
       include: {
         user: {
