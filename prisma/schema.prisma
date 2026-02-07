@@ -83,6 +83,7 @@ model User {
   documentVotes       DocumentVote[]
   speechRequests      SpeechRequest[]      @relation("SpeechRequests")
   legislativeProcesses LegislativeProcess[] @relation("AuthoredProcesses")
+  auditLogs           AuditLog[]
 
   @@map("users")
 }
@@ -335,4 +336,19 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+// Logs de auditoria para segurança e rastreabilidade
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String   // EXPORT_REPORT, VIEW_REPORT, etc.
+  details   String?  // Detalhes extras (filtros usados, etc)
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
 }
