@@ -75,7 +75,8 @@ export async function POST(request: NextRequest) {
           }
         }
       });
-      finalSessionNumber = `${String(count + 1).padStart(3, '0')}/${year}`;
+      // Formato: 001/2024
+      finalSessionNumber = `${(count + 1).toString().padStart(3, '0')}/${year}`;
     }
 
     const votingSession = await prisma.votingSession.create({
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
         description: description || null,
         scheduledAt: new Date(scheduledAt),
         date: new Date(scheduledAt),
-        sessionNumber: finalSessionNumber,
+        sessionNumber: finalSessionNumber, // String
         quorum: quorum || 7,
         createdBy: session.user.id,
         status: 'SCHEDULED'

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json()
-    const { title, type, content, author, sessionId } = data
+    const { title, type, content, author, sessionId, phase } = data
 
     // Validação básica
     if (!title || !type || !content || !sessionId) {
@@ -34,11 +34,19 @@ export async function POST(request: NextRequest) {
       }, { status: 404 })
     }
 
+    // Regra de Negócio: Documentos só podem ser criados se a sessão estiver ABERTA (não encerrada)
+    if (existingSession.status === 'CLOSED') {
+      return NextResponse.json({ 
+        error: 'Não é possível adicionar documentos a uma sessão encerrada' 
+      }, { status: 400 })
+    }
+
     // Criar o documento
     const document = await prisma.document.create({
       data: {
         title,
-        type: type as any, // Forçar tipo para evitar erro de enum
+        type,
+        phase: phase || 'PEQUENO_EXPEDIENTE',
         content,
         author: author || null,
         sessionId,
@@ -93,12 +101,12 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const sessionId = searchParams.get('sessionId')
-    const phase = searchParams.get('phase')
+    const type = searchParams.get('type') || searchParams.get('phase')
 
     // Buscar documentos
     const whereClause: any = {}
     if (sessionId) whereClause.sessionId = sessionId
-    if (phase) whereClause.phase = phase
+    if (type) whereClause.type = type
 
     const documents = await prisma.document.findMany({
       where: whereClause,

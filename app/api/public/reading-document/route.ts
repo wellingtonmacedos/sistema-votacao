@@ -6,10 +6,27 @@ export const revalidate = 0
 
 export async function GET() {
   try {
+    // Buscar sessão ativa primeiro
+    const currentSession = await prisma.votingSession.findFirst({
+      where: {
+        status: {
+          not: 'CLOSED'
+        }
+      },
+      orderBy: {
+        date: 'desc'
+      }
+    })
+
+    if (!currentSession) {
+      return NextResponse.json({ document: null })
+    }
+
     // Buscar o documento que está sendo lido
     const readingDocument = await prisma.document.findFirst({
       where: {
-        isBeingRead: true
+        isBeingRead: true,
+        sessionId: currentSession.id
       },
       include: {
         creator: {

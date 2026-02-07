@@ -6,7 +6,7 @@ import { prisma } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions)
     
@@ -14,17 +14,29 @@ export async function GET() {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
-    // Buscar sessão ativa
-    const currentSession = await prisma.votingSession.findFirst({
-      where: {
-        status: {
-          not: 'CLOSED'
-        }
-      },
-      orderBy: {
-        date: 'desc'
-      }
-    })
+    const { searchParams } = new URL(request.url)
+    const sessionId = searchParams.get('sessionId')
+
+    let currentSession;
+
+    if (sessionId) {
+      currentSession = await prisma.votingSession.findUnique({
+        where: { id: sessionId }
+      })
+    } else {
+      // Buscar sessão ativa padrão
+      currentSession = await prisma.votingSession.findFirst({
+        where: {
+          status: {
+            not: 'CLOSED'
+          }
+        },
+        orderBy: [
+          { date: 'desc' },
+          { createdAt: 'desc' }
+        ]
+      })
+    }
 
     if (!currentSession) {
       return NextResponse.json([])
@@ -52,6 +64,7 @@ export async function GET() {
       id: doc.id,
       title: doc.title,
       type: doc.type,
+      phase: doc.phase,
       content: doc.content || '',
       author: doc.author || doc.creator?.fullName || 'Autor desconhecido',
       description: doc.description || '',

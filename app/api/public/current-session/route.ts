@@ -13,9 +13,10 @@ export async function GET() {
           not: 'CLOSED'
         }
       },
-      orderBy: {
-        date: 'desc'
-      },
+      orderBy: [
+        { date: 'desc' },
+        { createdAt: 'desc' }
+      ],
       include: {
         documents: {
           where: {

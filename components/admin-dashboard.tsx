@@ -48,8 +48,10 @@ import {
   Megaphone,
   Building2,
   Upload,
-  Loader2
+  Loader2,
+  BarChart
 } from "lucide-react"
+import Link from "next/link"
 
 // Definição dos itens do menu lateral
 const menuItems = [
@@ -62,6 +64,7 @@ const menuItems = [
   { id: 'ordem', label: 'Ordem do Dia', icon: ListChecks, color: 'text-orange-600' },
   { id: 'consideracoes', label: 'Considerações', icon: MessageSquare, color: 'text-violet-600' },
   { id: 'tribuna', label: 'Tribuna Livre', icon: Megaphone, color: 'text-amber-600' },
+  { id: 'relatorios', label: 'Relatórios', icon: BarChart, color: 'text-pink-600', href: '/admin/relatorios' },
 ]
 
 // Componente para gerenciar Considerações Finais
@@ -1581,16 +1584,20 @@ export function AdminDashboard() {
   // Estados para o modal de adicionar documento
   const [isAddDocumentOpen, setIsAddDocumentOpen] = useState(false)
   const [documentPhase, setDocumentPhase] = useState('')
+  const [availableSessions, setAvailableSessions] = useState<any[]>([]) // Lista de sessões disponíveis
   const [documentForm, setDocumentForm] = useState({
     title: '',
     type: '',
     content: '',
+    sessionId: '',
     selectedAuthors: [] as string[] // IDs dos vereadores selecionados
   })
   const [councilorsForDocument, setCouncilorsForDocument] = useState<any[]>([]) // Lista de vereadores para o checkbox
   
   // Estados para criação de sessão
   const [isCreateSessionOpen, setIsCreateSessionOpen] = useState(false)
+  const [isSelectSessionOpen, setIsSelectSessionOpen] = useState(false)
+  const [scheduledSessions, setScheduledSessions] = useState<any[]>([])
   const [sessionForm, setSessionForm] = useState({
     title: '',
     date: new Date().toISOString().split('T')[0]
@@ -1607,6 +1614,7 @@ export function AdminDashboard() {
 
   const fetchSessionData = async () => {
     try {
+      let activeSessionId = null
       const response = await fetch('/api/public/current-session')
       if (response.ok) {
         const data = await response.json()
@@ -1614,11 +1622,17 @@ export function AdminDashboard() {
           setCurrentSession(data)
           setSessionPhase(data.status)
           setTimerActive(!!data.timer?.isActive)
+          activeSessionId = data.id
         }
       }
 
       // Buscar documentos da sessão
-      const docsResponse = await fetch('/api/session/documents')
+      // Se tivermos uma sessão ativa, buscamos os documentos dela especificamente
+      const docsUrl = activeSessionId 
+        ? `/api/session/documents?sessionId=${activeSessionId}`
+        : '/api/session/documents'
+        
+      const docsResponse = await fetch(docsUrl)
       if (docsResponse.ok) {
         const docsData = await docsResponse.json()
         setDocuments(docsData)
@@ -1645,6 +1659,14 @@ export function AdminDashboard() {
         const votingData = await votingResponse.json()
         setActiveVoting(votingData.activeVoting)
       }
+
+      // Buscar sessões agendadas
+      const sessionsResponse = await fetch('/api/admin/sessions')
+      if (sessionsResponse.ok) {
+        const sessionsData = await sessionsResponse.json()
+        const scheduled = sessionsData.filter((s: any) => s.status === 'SCHEDULED')
+        setScheduledSessions(scheduled)
+      }
     } catch (error) {
       console.error('Erro ao buscar dados da sessão:', error)
     }
@@ -1665,10 +1687,26 @@ export function AdminDashboard() {
     }
   }
 
-  // Buscar vereadores quando o modal de documento abrir
+  // Buscar lista de sessões disponíveis
+  const fetchAvailableSessions = async () => {
+    try {
+      const response = await fetch('/api/admin/sessions')
+      if (response.ok) {
+        const data = await response.json()
+        // Filtrar sessões encerradas (CLOSED) para não aparecerem na seleção
+        const activeSessions = data.filter((session: any) => session.status !== 'CLOSED')
+        setAvailableSessions(activeSessions)
+      }
+    } catch (error) {
+      console.error('Erro ao buscar sessões:', error)
+    }
+  }
+
+  // Buscar dados quando o modal de documento abrir
   useEffect(() => {
     if (isAddDocumentOpen) {
       fetchCouncilorsForDocument()
+      fetchAvailableSessions()
     }
   }, [isAddDocumentOpen])
 
@@ -1867,21 +1905,23 @@ export function AdminDashboard() {
   }
 
   // Controlar sessão (iniciar/encerrar)
-  const handleSessionControl = async (action: 'start' | 'end') => {
-    if (!currentSession?.id) return
+  const handleSessionControl = async (action: 'start' | 'end', sessionId?: string) => {
+    const targetId = sessionId || currentSession?.id
+    if (!targetId) return
 
     try {
       const response = await fetch('/api/admin/session-control', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          sessionId: currentSession.id,
+          sessionId: targetId,
           action
         })
       })
       if (response.ok) {
         const result = await response.json()
         toast.success(result.message)
+        setIsSelectSessionOpen(false) // Fechar modal se estiver aberto
         await fetchSessionData()
       } else {
         const error = await response.json()
@@ -1890,6 +1930,19 @@ export function AdminDashboard() {
     } catch (error) {
       console.error('Erro ao controlar sessão:', error)
       toast.error('Erro ao controlar sessão')
+    }
+  }
+
+  const handleStartSessionClick = () => {
+    if (scheduledSessions.length === 0) {
+      toast.error('Não há sessões agendadas para iniciar')
+      return
+    }
+
+    if (scheduledSessions.length === 1) {
+      handleSessionControl('start', scheduledSessions[0].id)
+    } else {
+      setIsSelectSessionOpen(true)
     }
   }
 
@@ -2180,16 +2233,23 @@ export function AdminDashboard() {
   const handleAddDocument = (phase: string) => {
     // Definir o tipo de documento baseado na fase
     const documentTypes: Record<string, string[]> = {
-      'PEQUENO_EXPEDIENTE': ['ATA_ANTERIOR', 'DISPENSA_ATA'],
       'GRANDE_EXPEDIENTE': ['REQUERIMENTO', 'PROJETO'],
       'ORDEM_DO_DIA': ['PROJETO', 'REQUERIMENTO']
     }
     
     setDocumentPhase(phase)
+    
+    // Para Pequeno Expediente, o tipo é livre (string vazia inicial)
+    // Para outros, usa o primeiro tipo da lista
+    const initialType = phase === 'PEQUENO_EXPEDIENTE' 
+      ? '' 
+      : (documentTypes[phase]?.[0] || 'REQUERIMENTO')
+
     setDocumentForm({
       title: '',
-      type: documentTypes[phase]?.[0] || 'REQUERIMENTO',
+      type: initialType,
       content: '',
+      sessionId: currentSession?.id || '',
       selectedAuthors: []
     })
     setIsAddDocumentOpen(true)
@@ -2197,13 +2257,8 @@ export function AdminDashboard() {
 
   const handleSaveDocument = async () => {
     // Validação básica
-    if (!documentForm.title || !documentForm.type || !documentForm.content) {
+    if (!documentForm.title || !documentForm.type || !documentForm.content || !documentForm.sessionId) {
       toast.error('Por favor, preencha todos os campos obrigatórios')
-      return
-    }
-
-    if (!currentSession?.id) {
-      toast.error('Nenhuma sessão ativa encontrada')
       return
     }
 
@@ -2224,7 +2279,8 @@ export function AdminDashboard() {
           type: documentForm.type,
           content: documentForm.content,
           author: authorNames || null, // null se não houver autores selecionados
-          sessionId: currentSession.id
+          sessionId: documentForm.sessionId,
+          phase: documentPhase
         })
       })
 
@@ -2237,6 +2293,7 @@ export function AdminDashboard() {
           title: '',
           type: '',
           content: '',
+          sessionId: '',
           selectedAuthors: []
         })
         setDocumentPhase('')
@@ -2259,6 +2316,7 @@ export function AdminDashboard() {
       title: '',
       type: '',
       content: '',
+      sessionId: '',
       selectedAuthors: []
     })
     setDocumentPhase('')
@@ -2296,47 +2354,91 @@ export function AdminDashboard() {
                   <p className="text-sm text-yellow-700 mb-3">
                     Não há nenhuma sessão ativa no momento. Crie uma nova sessão para começar.
                   </p>
-                  <Dialog open={isCreateSessionOpen} onOpenChange={setIsCreateSessionOpen}>
-                    <DialogTrigger asChild>
-                      <Button className="bg-blue-600 hover:bg-blue-700">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Criar Nova Sessão
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Criar Nova Sessão</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-1">
-                            Título da Sessão (opcional)
-                          </label>
-                          <Input
-                            value={sessionForm.title}
-                            onChange={(e) => setSessionForm({ ...sessionForm, title: e.target.value })}
-                            placeholder="Deixe em branco para gerar automaticamente"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-1">
-                            Data da Sessão
-                          </label>
-                          <Input
-                            type="date"
-                            value={sessionForm.date}
-                            onChange={(e) => setSessionForm({ ...sessionForm, date: e.target.value })}
-                          />
-                        </div>
+                  <div className="flex flex-col gap-4">
+                    <div className="flex gap-2">
+                      <Dialog open={isCreateSessionOpen} onOpenChange={setIsCreateSessionOpen}>
+                        <DialogTrigger asChild>
+                          <Button className="bg-blue-600 hover:bg-blue-700">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Criar Nova Sessão
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Criar Nova Sessão</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1">
+                                Título da Sessão (opcional)
+                              </label>
+                              <Input
+                                value={sessionForm.title}
+                                onChange={(e) => setSessionForm({ ...sessionForm, title: e.target.value })}
+                                placeholder="Deixe em branco para gerar automaticamente"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1">
+                                Data da Sessão
+                              </label>
+                              <Input
+                                type="date"
+                                value={sessionForm.date}
+                                onChange={(e) => setSessionForm({ ...sessionForm, date: e.target.value })}
+                              />
+                            </div>
+                            <Button 
+                              onClick={handleCreateSession}
+                              className="w-full"
+                            >
+                              Criar Sessão
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+
+                      {scheduledSessions.length > 0 && (
                         <Button 
-                          onClick={handleCreateSession}
-                          className="w-full"
+                          onClick={handleStartSessionClick}
+                          className="bg-green-600 hover:bg-green-700"
                         >
-                          Criar Sessão
+                          <Play className="h-4 w-4 mr-2" />
+                          Iniciar Sessão
                         </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                      )}
+                    </div>
+
+                    <Dialog open={isSelectSessionOpen} onOpenChange={setIsSelectSessionOpen}>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Selecione uma Sessão para Iniciar</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                          {scheduledSessions.map((session) => (
+                            <Button
+                              key={session.id}
+                              variant="outline"
+                              className="w-full justify-start text-left h-auto py-3 px-4 hover:bg-green-50 hover:border-green-200"
+                              onClick={() => handleSessionControl('start', session.id)}
+                            >
+                              <div className="flex items-center gap-3 w-full">
+                                <Calendar className="h-5 w-5 text-green-600 flex-shrink-0" />
+                                <div>
+                                  <div className="font-semibold text-gray-900">
+                                    {session.sessionNumber ? `Sessão ${session.sessionNumber} - ` : ''}{session.title}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    Agendada para: {new Date(session.scheduledAt).toLocaleDateString('pt-BR')} às {new Date(session.scheduledAt).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
+                                  </div>
+                                </div>
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2404,6 +2506,36 @@ export function AdminDashboard() {
                 {menuItems.map((item) => {
                   const Icon = item.icon
                   const isActive = activeTab === item.id
+                  
+                  if ((item as any).href) {
+                    return (
+                      <Link
+                        key={item.id}
+                        href={(item as any).href}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
+                          "hover:bg-gray-100 group",
+                          isActive && "bg-blue-50 border border-blue-200 shadow-sm",
+                          sidebarCollapsed && "justify-center px-2"
+                        )}
+                        title={sidebarCollapsed ? item.label : undefined}
+                      >
+                        <Icon className={cn(
+                          "h-5 w-5 flex-shrink-0 transition-colors",
+                          item.color
+                        )} />
+                        {!sidebarCollapsed && (
+                          <span className={cn(
+                            "text-sm font-medium transition-colors truncate",
+                            "text-gray-600 group-hover:text-gray-900"
+                          )}>
+                            {item.label}
+                          </span>
+                        )}
+                      </Link>
+                    )
+                  }
+
                   return (
                     <button
                       key={item.id}
@@ -2851,7 +2983,7 @@ export function AdminDashboard() {
               <CardContent>
                 <div className="space-y-4">
                   {/* Documentos do Pequeno Expediente */}
-                  {documents.filter(doc => ['ATA_ANTERIOR', 'DISPENSA_ATA', 'COMUNICADO'].includes(doc.type) && !doc.isOrdemDoDia).map((doc) => (
+                  {documents.filter(doc => (doc.phase === 'PEQUENO_EXPEDIENTE' || ['ATA_ANTERIOR', 'DISPENSA_ATA', 'COMUNICADO'].includes(doc.type)) && !doc.isOrdemDoDia).map((doc) => (
                     <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div>
                         <h4 className="font-medium">{doc.title}</h4>
@@ -2939,7 +3071,7 @@ export function AdminDashboard() {
               <CardContent>
                 <div className="space-y-4">
                   {/* Documentos do Grande Expediente */}
-                  {documents.filter(doc => ['REQUERIMENTO', 'PROJETO', 'INDICACAO', 'MOCAO'].includes(doc.type) && !doc.isOrdemDoDia).map((doc) => (
+                  {documents.filter(doc => (doc.phase === 'GRANDE_EXPEDIENTE' || ['REQUERIMENTO', 'PROJETO', 'INDICACAO', 'MOCAO'].includes(doc.type)) && !doc.isOrdemDoDia).map((doc) => (
                     <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div>
                         <h4 className="font-medium">{doc.title}</h4>
@@ -3151,6 +3283,30 @@ export function AdminDashboard() {
             </DialogHeader>
             
             <div className="space-y-4">
+              {/* Sessão Legislativa */}
+              <div>
+                <label className="text-sm font-medium block mb-1">Sessão Legislativa *</label>
+                <Select
+                  value={documentForm.sessionId}
+                  onValueChange={(value) => setDocumentForm({...documentForm, sessionId: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a sessão" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSessions.length === 0 ? (
+                      <SelectItem value="none" disabled>Nenhuma sessão disponível</SelectItem>
+                    ) : (
+                      availableSessions.map((session) => (
+                        <SelectItem key={session.id} value={session.id}>
+                          {session.sessionNumber ? `Sessão ${session.sessionNumber} - ` : ''}{session.title} ({new Date(session.scheduledAt).toLocaleDateString('pt-BR')}) {session.status === 'CLOSED' ? '[Encerrada]' : ''}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Título do Documento */}
               <div>
                 <label className="text-sm font-medium block mb-1">Título do Documento *</label>
@@ -3165,34 +3321,37 @@ export function AdminDashboard() {
               {/* Tipo de Documento */}
               <div>
                 <label className="text-sm font-medium block mb-1">Tipo de Documento *</label>
-                <Select 
-                  value={documentForm.type} 
-                  onValueChange={(value) => setDocumentForm({...documentForm, type: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {documentPhase === 'PEQUENO_EXPEDIENTE' && (
-                      <>
-                        <SelectItem value="ATA_ANTERIOR">Ata da Sessão Anterior</SelectItem>
-                        <SelectItem value="DISPENSA_ATA">Dispensa da Leitura da Ata</SelectItem>
-                      </>
-                    )}
-                    {documentPhase === 'GRANDE_EXPEDIENTE' && (
-                      <>
-                        <SelectItem value="REQUERIMENTO">Requerimento</SelectItem>
-                        <SelectItem value="PROJETO">Projeto</SelectItem>
-                      </>
-                    )}
-                    {documentPhase === 'ORDEM_DO_DIA' && (
-                      <>
-                        <SelectItem value="PROJETO">Projeto</SelectItem>
-                        <SelectItem value="REQUERIMENTO">Requerimento</SelectItem>
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
+                {documentPhase === 'PEQUENO_EXPEDIENTE' ? (
+                  <Input
+                    value={documentForm.type}
+                    onChange={(e) => setDocumentForm({...documentForm, type: e.target.value})}
+                    placeholder="Digite o tipo do documento (ex: Ata, Leitura de Ofício)"
+                    className="w-full"
+                  />
+                ) : (
+                  <Select 
+                    value={documentForm.type} 
+                    onValueChange={(value) => setDocumentForm({...documentForm, type: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {documentPhase === 'GRANDE_EXPEDIENTE' && (
+                        <>
+                          <SelectItem value="REQUERIMENTO">Requerimento</SelectItem>
+                          <SelectItem value="PROJETO">Projeto</SelectItem>
+                        </>
+                      )}
+                      {documentPhase === 'ORDEM_DO_DIA' && (
+                        <>
+                          <SelectItem value="PROJETO">Projeto</SelectItem>
+                          <SelectItem value="REQUERIMENTO">Requerimento</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               
               {/* Autor/Proponente */}
@@ -3305,6 +3464,40 @@ export function AdminDashboard() {
               >
                 Cancelar
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de Seleção de Sessão para Iniciar */}
+        <Dialog open={isSelectSessionOpen} onOpenChange={setIsSelectSessionOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Iniciar Sessão</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <p className="text-sm text-gray-500 mb-2">
+                Selecione qual das sessões agendadas você deseja iniciar:
+              </p>
+              {scheduledSessions.length === 0 ? (
+                <p className="text-center text-gray-500">Nenhuma sessão agendada disponível.</p>
+              ) : (
+                scheduledSessions.map((session) => (
+                  <Button
+                    key={session.id}
+                    variant="outline"
+                    className="w-full justify-start h-auto py-3 px-4 hover:bg-green-50 hover:border-green-200 hover:text-green-700 transition-colors"
+                    onClick={() => handleSessionControl('start', session.id)}
+                  >
+                    <div className="text-left w-full">
+                      <div className="font-medium">{session.title}</div>
+                      <div className="text-sm text-gray-500 mt-1">
+                        {new Date(session.scheduledAt).toLocaleDateString('pt-BR')}
+                        {session.sessionNumber && ` • Sessão Nº ${session.sessionNumber}`}
+                      </div>
+                    </div>
+                  </Button>
+                ))
+              )}
             </div>
           </DialogContent>
         </Dialog>

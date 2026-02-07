@@ -43,14 +43,6 @@ enum MatterStatus {
   ABSTAINED
 }
 
-enum DocumentType {
-  ATA_ANTERIOR
-  DISPENSA_ATA
-  REQUERIMENTO
-  PROJETO
-  PROCESSO
-}
-
 enum SpeechType {
   CONSIDERACOES_FINAIS
   TRIBUNA_LIVE
@@ -94,13 +86,14 @@ model VotingSession {
   title       String
   description String?
   status      SessionStatus @default(SCHEDULED)
+  currentPhase String       @default("SCHEDULED")
   scheduledAt DateTime
   startedAt   DateTime?
   endedAt     DateTime?
   quorum      Int           @default(7) // Quórum mínimo (maioria simples)
   
   // Campos para timer e controle do painel público
-  sessionNumber    String?       // Número da sessão para exibição
+  sessionNumber    String        @default("") // Número da sessão para exibição (ex: 001/2024)
   date            DateTime      @default(now()) // Data da sessão
   timerStartedAt  DateTime?     // Quando o timer foi iniciado
   timerDuration   Int?          // Duração do timer em segundos
@@ -203,15 +196,19 @@ model Document {
   id          String       @id @default(cuid())
   sessionId   String
   title       String
+  type        String // Tipo livre (Ata, Requerimento, Projeto, etc)
+  phase       String @default("PEQUENO_EXPEDIENTE") // Fase em que o documento foi criado
+  content     String?
+  author      String? // Autor do documento (pode ser diferente do criador)
   description String?
-  content     String?      // Conteúdo completo do documento
-  author      String?      // Autor/responsável pelo documento
-  type        DocumentType
+  
   orderIndex  Int          @default(0)
   isApproved  Boolean?     // null = não votado, true = aprovado, false = rejeitado
-  isBeingRead Boolean      @default(false) // Se está sendo lido no momento
-  isVoting    Boolean      @default(false) // Se está em votação no momento
-  isOrdemDoDia Boolean     @default(false) // Se foi movido para Ordem do Dia para votação
+  
+  // Controle de fluxo
+  isBeingRead Boolean @default(false) // Se está sendo lido no momento
+  isVoting    Boolean @default(false) // Se está em votação no momento
+  isOrdemDoDia Boolean @default(false) // Se foi movido para a Ordem do Dia
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
