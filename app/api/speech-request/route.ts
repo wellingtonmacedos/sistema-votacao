@@ -83,16 +83,41 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { subject, type, userId, citizenName, citizenProfession } = body;
+    const { subject, type, userId, citizenName, citizenProfession, sessionId } = body;
 
-    // Buscar sessão atual ativa
-    const currentSession = await prisma.votingSession.findFirst({
-      where: {
-        status: {
-          in: ['SCHEDULED', 'PEQUENO_EXPEDIENTE', 'GRANDE_EXPEDIENTE', 'ORDEM_DO_DIA', 'CONSIDERACOES_FINAIS', 'TRIBUNA_LIVE']
+    let currentSession;
+
+    // Se o sessionId for fornecido, buscar a sessão específica
+    if (sessionId) {
+      currentSession = await prisma.votingSession.findUnique({
+        where: { id: sessionId }
+      });
+
+      // Verificar status válido se não for admin (opcional, mas recomendado para consistência)
+      if (currentSession && session.user.role !== 'ADMIN') {
+        const validStatuses = ['SCHEDULED', 'PEQUENO_EXPEDIENTE', 'GRANDE_EXPEDIENTE', 'ORDEM_DO_DIA', 'CONSIDERACOES_FINAIS', 'TRIBUNA_LIVE'];
+        if (!validStatuses.includes(currentSession.status)) {
+           // Se a sessão estiver fechada ou em status inválido, podemos bloquear ou permitir dependendo da regra de negócio.
+           // Assumindo que só pode solicitar em sessões ativas:
+           if (currentSession.status === 'CLOSED') {
+             return NextResponse.json({ error: "Sessão encerrada" }, { status: 400 });
+           }
         }
       }
-    });
+    } else {
+      // Buscar sessão atual ativa (fallback)
+      currentSession = await prisma.votingSession.findFirst({
+        where: {
+          status: {
+            in: ['SCHEDULED', 'PEQUENO_EXPEDIENTE', 'GRANDE_EXPEDIENTE', 'ORDEM_DO_DIA', 'CONSIDERACOES_FINAIS', 'TRIBUNA_LIVE']
+          }
+        },
+        orderBy: [
+          { date: 'desc' },
+          { createdAt: 'desc' }
+        ]
+      });
+    }
 
     if (!currentSession) {
       return NextResponse.json({ error: "Nenhuma sessão ativa encontrada" }, { status: 400 });

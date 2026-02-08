@@ -10,6 +10,7 @@ import { Clock, Users, FileText, Vote, User, BookOpen, Mic, CheckCircle } from "
 
 interface SessionData {
   id: string
+  title: string
   sessionNumber: string
   date: string
   status: string
@@ -295,7 +296,7 @@ export function PublicDisplayPanel() {
               CÂMARA DE VEREADORES
             </h1>
             <p className="text-xl opacity-90">
-              Sessão Nº {sessionData.sessionNumber} - {new Date(sessionData.date).toLocaleDateString('pt-BR')}
+              {sessionData.title} - {new Date(sessionData.date).toLocaleDateString('pt-BR')}
             </p>
           </div>
           <div className="text-right">
@@ -327,8 +328,13 @@ export function PublicDisplayPanel() {
       </header>
 
       <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-140px)]">
-        {/* Lista de Presença - Quando a chamada estiver aberta */}
-        {attendanceData && attendanceData.isAttendanceOpen && (
+        {/* Lista de Presença - Quando a chamada estiver aberta E não houver outro conteúdo prioritário */}
+        {attendanceData && attendanceData.isAttendanceOpen && 
+         !((sessionData.currentVoting && sessionData.currentVoting.isActive) || 
+           readingDocument || 
+           (sessionData.status === 'CONSIDERACOES_FINAIS') || 
+           consideracoesFinais.some(r => r.isSpeaking) || 
+           tribunaLivre.some(r => r.isSpeaking)) && (
           <Card className="lg:col-span-2 bg-white/10 backdrop-blur-sm border-white/20">
             <CardContent className="p-3 h-full">
               {/* Header compacto */}
@@ -483,7 +489,7 @@ export function PublicDisplayPanel() {
         )}
 
         {/* Tela de Votação - Similar à de Presença */}
-        {sessionData.currentVoting && sessionData.currentVoting.isActive && attendanceData && !attendanceData.isAttendanceOpen && (
+        {sessionData.currentVoting && sessionData.currentVoting.isActive && attendanceData && (
           <Card className="lg:col-span-2 bg-white/10 backdrop-blur-sm border-white/20">
             <CardContent className="p-6 h-full">
               <div className="relative mb-8">
@@ -751,7 +757,7 @@ export function PublicDisplayPanel() {
         {/* Inscrições para Fala - Considerações Finais */}
         {/* Oculta esta seção se houver pronunciamento ativo na Tribuna Livre */}
         {/* Mostra lista de inscritos se estiver na fase de considerações finais ou se houver alguém falando */}
-        {((sessionData.status === 'CONSIDERACOES_FINAIS') || consideracoesFinais.some(r => r.isSpeaking)) && !attendanceData?.isAttendanceOpen && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && !tribunaLivre.some(r => r.isSpeaking) && (
+        {((sessionData.status === 'CONSIDERACOES_FINAIS') || consideracoesFinais.some(r => r.isSpeaking)) && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && !tribunaLivre.some(r => r.isSpeaking) && (
           <Card className="lg:col-span-2 bg-white/10 backdrop-blur-sm border-white/20">
             <CardContent className="p-6 h-full">
               <div className="relative mb-8">
@@ -951,7 +957,7 @@ export function PublicDisplayPanel() {
 
         {/* Inscrições para Fala - Tribuna Livre */}
         {/* Mostra apenas quem está falando agora */}
-        {tribunaLivre.filter(r => r.isSpeaking).length > 0 && !attendanceData?.isAttendanceOpen && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && (
+        {tribunaLivre.filter(r => r.isSpeaking).length > 0 && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && (
           <Card className="lg:col-span-2 bg-white/10 backdrop-blur-sm border-white/20">
             <CardContent className="p-6 h-full">
               <div className="relative mb-8">
@@ -1263,8 +1269,8 @@ export function PublicDisplayPanel() {
           </Card>
         )}
 
-        {/* Documento Sendo Lido (quando não há chamada aberta, votação ativa ou fala ativa) */}
-        {readingDocument && !attendanceData?.isAttendanceOpen && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && !currentSpeaker && (
+        {/* Documento Sendo Lido (quando não há votação ativa ou fala ativa) */}
+        {readingDocument && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && !currentSpeaker && (
           <Card className="lg:col-span-2 bg-white/10 backdrop-blur-sm border-white/20 overflow-hidden">
             <CardContent className="p-6 h-full flex flex-col">
               {/* Header do documento */}
@@ -1441,6 +1447,37 @@ export function PublicDisplayPanel() {
             </Card>
           )}
 
+          {/* Status da Presença (Sidebar) - Aparece quando a chamada está aberta mas tem outro conteúdo principal */}
+          {attendanceData && attendanceData.isAttendanceOpen && 
+           ((sessionData.currentVoting && sessionData.currentVoting.isActive) || 
+             readingDocument || 
+             (sessionData.status === 'CONSIDERACOES_FINAIS') || 
+             consideracoesFinais.some(r => r.isSpeaking) || 
+             tribunaLivre.some(r => r.isSpeaking)) && (
+            <Card className="bg-white/10 backdrop-blur-sm border-white/20 mb-6">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-white" />
+                    <h3 className="font-bold text-white">PRESENÇA</h3>
+                  </div>
+                  <Badge className={`${attendanceData.hasQuorum ? 'bg-green-500' : 'bg-red-500'} text-white border-0 text-[10px] px-2`}>
+                    {attendanceData.hasQuorum ? 'QUÓRUM' : 'AGUARDANDO'}
+                  </Badge>
+                </div>
+                <div className="flex items-end justify-between">
+                  <div className="text-3xl font-bold text-white">
+                    {attendanceData.presentCount}<span className="text-lg text-white/60">/{attendanceData.totalCount}</span>
+                  </div>
+                </div>
+                <Progress 
+                  value={(attendanceData.presentCount / attendanceData.totalCount) * 100}
+                  className="h-2 bg-white/20 mt-2"
+                />
+              </CardContent>
+            </Card>
+          )}
+
           {/* Informações da Sessão */}
           <Card className="bg-white/10 backdrop-blur-sm border-white/20">
             <CardContent className="p-6">
@@ -1456,7 +1493,7 @@ export function PublicDisplayPanel() {
                 
                 <div className="flex justify-between">
                   <span className="opacity-80">Sessão:</span>
-                  <span className="font-semibold">Nº {sessionData.sessionNumber}</span>
+                  <span className="font-semibold text-right">{sessionData.title}</span>
                 </div>
                 
                 <div className="flex justify-between">

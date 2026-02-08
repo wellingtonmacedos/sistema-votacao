@@ -163,6 +163,7 @@ export async function GET() {
 
     const responseData = {
       id: currentSession.id,
+      title: currentSession.title,
       sessionNumber: currentSession.sessionNumber,
       date: currentSession.date,
       status: currentSession.status,

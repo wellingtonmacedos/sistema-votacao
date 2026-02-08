@@ -17,9 +17,10 @@ export async function GET() {
           not: 'CLOSED'
         }
       },
-      orderBy: {
-        createdAt: 'desc'
-      }
+      orderBy: [
+        { date: 'desc' },
+        { createdAt: 'desc' }
+      ]
     });
 
     if (!activeSession) {

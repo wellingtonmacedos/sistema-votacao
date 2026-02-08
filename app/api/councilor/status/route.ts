@@ -23,9 +23,10 @@ export async function GET(request: NextRequest) {
           not: 'CLOSED'
         }
       },
-      orderBy: {
-        date: 'desc'
-      }
+      orderBy: [
+        { date: 'desc' },
+        { createdAt: 'desc' }
+      ]
     })
 
     if (!currentSession) {

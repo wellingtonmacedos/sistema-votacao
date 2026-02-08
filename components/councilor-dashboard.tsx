@@ -119,7 +119,6 @@ export function CouncilorDashboard() {
   const [votingInProgress, setVotingInProgress] = useState(false)
   const [presenceLoading, setPresenceLoading] = useState(false)
   const [speechLoading, setSpeechLoading] = useState(false)
-  const [speechSubject, setSpeechSubject] = useState('')
   const [voteConfirmDialog, setVoteConfirmDialog] = useState<{
     open: boolean
     voteType: 'YES' | 'NO' | 'ABSTENTION' | null
@@ -204,25 +203,20 @@ export function CouncilorDashboard() {
 
   // Solicitar fala
   const handleSpeechRequest = async () => {
-    if (!speechSubject.trim()) {
-      toast.error('Informe o assunto da fala')
-      return
-    }
-
     setSpeechLoading(true)
     try {
       const response = await fetch('/api/speech-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          subject: speechSubject,
-          type: 'CONSIDERACOES_FINAIS'
+          subject: 'Considerações Finais',
+          type: 'CONSIDERACOES_FINAIS',
+          sessionId: sessionData?.id
         })
       })
 
       if (response.ok) {
         toast.success('Solicitação de fala enviada!')
-        setSpeechSubject('')
         await fetchStatus()
       } else {
         const error = await response.json()
@@ -578,18 +572,11 @@ export function CouncilorDashboard() {
             ) : (
               <div className="space-y-4">
                 {/* Formulário de inscrição */}
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Input
-                    value={speechSubject}
-                    onChange={(e) => setSpeechSubject(e.target.value)}
-                    placeholder="Assunto da fala (ex: Transporte público)"
-                    className="flex-1"
-                    disabled={speechLoading}
-                  />
+                <div className="flex gap-2 mb-4">
                   <Button
                     onClick={handleSpeechRequest}
-                    disabled={speechLoading || !speechSubject.trim()}
-                    className="bg-green-600 hover:bg-green-700 text-white"
+                    disabled={speechLoading}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white"
                   >
                     {speechLoading ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
