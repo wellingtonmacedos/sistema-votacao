@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { toast } from "react-hot-toast"
 import { 
   Users, 
@@ -49,7 +50,8 @@ import {
   Building2,
   Upload,
   Loader2,
-  BarChart
+  BarChart,
+  Menu
 } from "lucide-react"
 import Link from "next/link"
 
@@ -332,7 +334,7 @@ function ConsideracoesFinaisTab() {
                     placeholder="Ex: Questões sobre obras públicas"
                   />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Button onClick={handleAddSpeechRequest}>Cadastrar</Button>
                   <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
                 </div>
@@ -348,13 +350,13 @@ function ConsideracoesFinaisTab() {
           <p className="text-gray-500 text-center py-8">Nenhuma solicitação de fala ainda</p>
         ) : (
           speechRequests.map((request) => (
-            <div key={request.id} className="flex items-center justify-between p-4 border rounded-lg">
+            <div key={request.id} className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg">
               <div>
                 <h4 className="font-medium">{request.subject}</h4>
                 <p className="text-sm text-gray-600">
                   Solicitado por: {request.user?.fullName || request.citizenName || 'N/A'}
                 </p>
-                <div className="flex gap-2 mt-2">
+                <div className="flex flex-wrap gap-2 mt-2">
                   <Badge variant={request.isApproved ? 'default' : 'secondary'}>
                     {request.isApproved ? 'Aprovada' : 'Pendente'}
                   </Badge>
@@ -754,7 +756,7 @@ function TribunaLivreTab() {
                     rows={3}
                   />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Button onClick={handleAddSpeechRequest} className="bg-yellow-600 hover:bg-yellow-700" disabled={!selectedUser || !manifestationSubject}>
                     Cadastrar
                   </Button>
@@ -772,13 +774,13 @@ function TribunaLivreTab() {
           <p className="text-gray-500 text-center py-8">Nenhuma manifestação agendada ainda</p>
         ) : (
           speechRequests.map((request) => (
-            <div key={request.id} className="flex items-center justify-between p-4 border rounded-lg border-yellow-200 bg-yellow-50/30">
+            <div key={request.id} className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg border-yellow-200 bg-yellow-50/30">
               <div>
                 <h4 className="font-medium">{request.subject}</h4>
                 <p className="text-sm text-gray-600">
                   Solicitado por: {request.user?.fullName || request.citizenName || 'N/A'}
                 </p>
-                <div className="flex gap-2 mt-2">
+                <div className="flex flex-wrap gap-2 mt-2">
                   <Badge variant={request.isApproved ? 'default' : 'secondary'} className={request.isApproved ? 'bg-yellow-600' : ''}>
                     {request.isApproved ? 'Aprovada' : 'Pendente'}
                   </Badge>
@@ -789,7 +791,7 @@ function TribunaLivreTab() {
               
               <div className="flex flex-col gap-3">
                 {!request.isApproved && (
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button 
                       size="sm"
                       variant="outline"
@@ -1509,7 +1511,7 @@ function SessoesTab() {
           <div className="text-center py-8">Carregando...</div>
         ) : sessions.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            Nenhuma sessão cadastrada. Clique em "Nova Sessão" para criar.
+            Nenhuma sessão cadastrada. Clique em &quot;Nova Sessão&quot; para criar.
           </div>
         ) : (
           <div className="space-y-3">
@@ -1566,6 +1568,7 @@ function SessoesTab() {
 export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [currentSession, setCurrentSession] = useState<any>(null)
   const [sessionPhase, setSessionPhase] = useState('SCHEDULED')
   const [documents, setDocuments] = useState<any[]>([])
@@ -2327,6 +2330,147 @@ export function AdminDashboard() {
     alert(`Aprovando solicitação de fala ID: ${speechId}`)
   }
 
+  const activeTabInfo = menuItems.find((item) => item.id === activeTab)
+
+  const renderSidebar = ({
+    collapsed,
+    showCollapseToggle,
+    sticky,
+    onNavigate,
+  }: {
+    collapsed: boolean
+    showCollapseToggle: boolean
+    sticky: boolean
+    onNavigate?: () => void
+  }) => (
+    <div
+      className={cn(
+        "bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden",
+        sticky && "sticky top-4"
+      )}
+    >
+      <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600">
+        {!collapsed && (
+          <div className="flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-white" />
+            <span className="font-semibold text-white text-sm">Menu Admin</span>
+          </div>
+        )}
+        {showCollapseToggle && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="h-8 w-8 text-white hover:bg-white/20"
+          >
+            {collapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </Button>
+        )}
+      </div>
+
+      <nav className="p-2 space-y-1">
+        {menuItems.map((item) => {
+          const Icon = item.icon
+          const isActive = activeTab === item.id
+
+          if ((item as any).href) {
+            return (
+              <Link
+                key={item.id}
+                href={(item as any).href}
+                onClick={onNavigate}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
+                  "hover:bg-gray-100 group",
+                  isActive && "bg-blue-50 border border-blue-200 shadow-sm",
+                  collapsed && "justify-center px-2"
+                )}
+                title={collapsed ? item.label : undefined}
+              >
+                <Icon
+                  className={cn(
+                    "h-5 w-5 flex-shrink-0 transition-colors",
+                    item.color
+                  )}
+                />
+                {!collapsed && (
+                  <span
+                    className={cn(
+                      "text-sm font-medium transition-colors truncate",
+                      "text-gray-600 group-hover:text-gray-900"
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                )}
+              </Link>
+            )
+          }
+
+          return (
+            <button
+              key={item.id}
+              onClick={() => {
+                setActiveTab(item.id)
+                onNavigate?.()
+              }}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
+                "hover:bg-gray-100 group",
+                isActive && "bg-blue-50 border border-blue-200 shadow-sm",
+                collapsed && "justify-center px-2"
+              )}
+              title={collapsed ? item.label : undefined}
+            >
+              <Icon
+                className={cn(
+                  "h-5 w-5 flex-shrink-0 transition-colors",
+                  isActive ? item.color : "text-gray-500 group-hover:text-gray-700"
+                )}
+              />
+              {!collapsed && (
+                <span
+                  className={cn(
+                    "text-sm font-medium transition-colors truncate",
+                    isActive
+                      ? "text-gray-900"
+                      : "text-gray-600 group-hover:text-gray-900"
+                  )}
+                >
+                  {item.label}
+                </span>
+              )}
+              {!collapsed && isActive && (
+                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-600" />
+              )}
+            </button>
+          )
+        })}
+      </nav>
+
+      {!collapsed && (
+        <div className="p-3 border-t border-gray-100 bg-gray-50/50">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              onNavigate?.()
+              window.open("/painel", "_blank")
+            }}
+            className="w-full justify-start gap-2 text-xs"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            Abrir Painel Público
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -2344,8 +2488,8 @@ export function AdminDashboard() {
         {/* Session Status */}
         {!currentSession ? (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start gap-3">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3 min-w-0">
                 <Calendar className="h-6 w-6 text-yellow-600 mt-1" />
                 <div>
                   <h3 className="font-semibold text-yellow-900 mb-1">
@@ -2355,7 +2499,7 @@ export function AdminDashboard() {
                     Não há nenhuma sessão ativa no momento. Crie uma nova sessão para começar.
                   </p>
                   <div className="flex flex-col gap-4">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Dialog open={isCreateSessionOpen} onOpenChange={setIsCreateSessionOpen}>
                         <DialogTrigger asChild>
                           <Button className="bg-blue-600 hover:bg-blue-700">
@@ -2445,8 +2589,8 @@ export function AdminDashboard() {
           </div>
         ) : (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3 min-w-0">
                 <Calendar className="h-5 w-5 text-blue-600" />
                 <div>
                   <h3 className="font-semibold text-blue-900">
@@ -2457,7 +2601,7 @@ export function AdminDashboard() {
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Badge variant={sessionPhase === 'SCHEDULED' ? 'secondary' : 'default'}>
                   {getPhaseTitle(sessionPhase)}
                 </Badge>
@@ -2476,117 +2620,49 @@ export function AdminDashboard() {
         )}
 
         {/* Layout com Menu Lateral */}
-        <div className="flex gap-6">
-          {/* Sidebar */}
-          <aside className={cn(
-            "flex-shrink-0 transition-all duration-300 ease-in-out",
-            sidebarCollapsed ? "w-16" : "w-64"
-          )}>
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 sticky top-4 overflow-hidden">
-              {/* Header do Sidebar */}
-              <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600">
-                {!sidebarCollapsed && (
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-5 w-5 text-white" />
-                    <span className="font-semibold text-white text-sm">Menu Admin</span>
-                  </div>
-                )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                  className="h-8 w-8 text-white hover:bg-white/20"
-                >
-                  {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 md:hidden">
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" className="shrink-0">
+                  <Menu className="h-5 w-5" />
                 </Button>
-              </div>
-              
-              {/* Menu Items */}
-              <nav className="p-2 space-y-1">
-                {menuItems.map((item) => {
-                  const Icon = item.icon
-                  const isActive = activeTab === item.id
-                  
-                  if ((item as any).href) {
-                    return (
-                      <Link
-                        key={item.id}
-                        href={(item as any).href}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
-                          "hover:bg-gray-100 group",
-                          isActive && "bg-blue-50 border border-blue-200 shadow-sm",
-                          sidebarCollapsed && "justify-center px-2"
-                        )}
-                        title={sidebarCollapsed ? item.label : undefined}
-                      >
-                        <Icon className={cn(
-                          "h-5 w-5 flex-shrink-0 transition-colors",
-                          item.color
-                        )} />
-                        {!sidebarCollapsed && (
-                          <span className={cn(
-                            "text-sm font-medium transition-colors truncate",
-                            "text-gray-600 group-hover:text-gray-900"
-                          )}>
-                            {item.label}
-                          </span>
-                        )}
-                      </Link>
-                    )
-                  }
-
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => setActiveTab(item.id)}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
-                        "hover:bg-gray-100 group",
-                        isActive && "bg-blue-50 border border-blue-200 shadow-sm",
-                        sidebarCollapsed && "justify-center px-2"
-                      )}
-                      title={sidebarCollapsed ? item.label : undefined}
-                    >
-                      <Icon className={cn(
-                        "h-5 w-5 flex-shrink-0 transition-colors",
-                        isActive ? item.color : "text-gray-500 group-hover:text-gray-700"
-                      )} />
-                      {!sidebarCollapsed && (
-                        <span className={cn(
-                          "text-sm font-medium transition-colors truncate",
-                          isActive ? "text-gray-900" : "text-gray-600 group-hover:text-gray-900"
-                        )}>
-                          {item.label}
-                        </span>
-                      )}
-                      {!sidebarCollapsed && isActive && (
-                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-600" />
-                      )}
-                    </button>
-                  )
+              </SheetTrigger>
+              <SheetContent side="left" className="p-3 pt-10">
+                {renderSidebar({
+                  collapsed: false,
+                  showCollapseToggle: false,
+                  sticky: false,
+                  onNavigate: () => setMobileMenuOpen(false),
                 })}
-              </nav>
-              
-              {/* Footer do Sidebar */}
-              {!sidebarCollapsed && (
-                <div className="p-3 border-t border-gray-100 bg-gray-50/50">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => window.open('/painel', '_blank')}
-                    className="w-full justify-start gap-2 text-xs"
-                  >
-                    <Eye className="h-3.5 w-3.5" />
-                    Abrir Painel Público
-                  </Button>
+              </SheetContent>
+            </Sheet>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-gray-900 truncate">
+                {activeTabInfo?.label || "Menu"}
+              </div>
+              {currentSession && (
+                <div className="text-xs text-gray-600 truncate">
+                  {currentSession?.title ||
+                    "Sessão Nº " + (currentSession?.sessionNumber || "001")}
                 </div>
               )}
             </div>
-          </aside>
+          </div>
 
-          {/* Área de Conteúdo Principal */}
-          <main className="flex-1 min-w-0">
+          <div className="flex flex-col md:flex-row gap-6">
+            <aside className={cn(
+              "hidden md:block flex-shrink-0 transition-all duration-300 ease-in-out",
+              sidebarCollapsed ? "w-16" : "w-64"
+            )}>
+              {renderSidebar({
+                collapsed: sidebarCollapsed,
+                showCollapseToggle: true,
+                sticky: true,
+              })}
+            </aside>
+
+            <main className="flex-1 min-w-0">
           {/* CONTROLE DO PAINEL PÚBLICO */}
           {activeTab === 'painel' && <div className="space-y-6">
             <Card>
@@ -2606,12 +2682,12 @@ export function AdminDashboard() {
                   
                   <div className="grid gap-3">
                     {documents.map((doc) => (
-                      <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
+                      <div key={doc.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg">
+                        <div className="min-w-0">
                           <h5 className="font-medium">{doc.title}</h5>
                           <p className="text-sm text-gray-600">{doc.type} - {doc.author || 'Autor não informado'}</p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                           {readingDocument === doc.id ? (
                             <Button
                               variant="destructive"
@@ -2644,7 +2720,7 @@ export function AdminDashboard() {
                     Timer para Considerações Finais
                   </h4>
                   
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <div className="flex items-center gap-2">
                       <label className="text-sm font-medium">Duração (minutos):</label>
                       <Input
@@ -2791,17 +2867,17 @@ export function AdminDashboard() {
                 {/* Controle de Votação Ativa */}
                 {activeVoting && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3 min-w-0">
                         <Vote className="h-6 w-6 text-red-600" />
-                        <div>
+                        <div className="min-w-0">
                           <h3 className="font-semibold text-red-800">
                             🗳️ VOTAÇÃO EM ANDAMENTO
                           </h3>
                           <p className="text-sm text-red-600">
                             {activeVoting.title} ({activeVoting.type === 'matter' ? 'Matéria' : 'Documento'})
                           </p>
-                          <div className="flex gap-4 mt-2 text-sm">
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm">
                             <span className="text-green-700">✅ Favorável: {activeVoting.votes.yes}</span>
                             <span className="text-red-700">❌ Contrário: {activeVoting.votes.no}</span>
                             <span className="text-yellow-700">⚪ Abstenção: {activeVoting.votes.abstention}</span>
@@ -2811,7 +2887,7 @@ export function AdminDashboard() {
                       </div>
                       <Button 
                         onClick={() => handleEndVoting(activeVoting.type, activeVoting.id, activeVoting.title)}
-                        className="bg-red-600 hover:bg-red-700"
+                        className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
                       >
                         <StopCircle className="h-4 w-4 mr-1" />
                         Encerrar Votação
@@ -2983,13 +3059,13 @@ export function AdminDashboard() {
               <CardContent>
                 <div className="space-y-4">
                   {/* Documentos do Pequeno Expediente */}
-                  {documents.filter(doc => (doc.phase === 'PEQUENO_EXPEDIENTE' || ['ATA_ANTERIOR', 'DISPENSA_ATA', 'COMUNICADO'].includes(doc.type)) && !doc.isOrdemDoDia).map((doc) => (
-                    <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
+                  {documents.filter(doc => (doc.phase === 'PEQUENO_EXPEDIENTE' || ['ATA_ANTERIOR', 'DISPENSA_ATA', 'COMUNICADO'].includes(doc.type))).map((doc) => (
+                    <div key={doc.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg">
+                      <div className="min-w-0">
                         <h4 className="font-medium">{doc.title}</h4>
                         <p className="text-sm text-gray-600">{doc.type}</p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
                         <Button 
                           variant="outline" 
                           size="sm"
@@ -3071,13 +3147,13 @@ export function AdminDashboard() {
               <CardContent>
                 <div className="space-y-4">
                   {/* Documentos do Grande Expediente */}
-                  {documents.filter(doc => (doc.phase === 'GRANDE_EXPEDIENTE' || ['REQUERIMENTO', 'PROJETO', 'INDICACAO', 'MOCAO'].includes(doc.type)) && !doc.isOrdemDoDia).map((doc) => (
-                    <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
+                  {documents.filter(doc => (doc.phase === 'GRANDE_EXPEDIENTE' || ['REQUERIMENTO', 'PROJETO', 'INDICACAO', 'MOCAO'].includes(doc.type))).map((doc) => (
+                    <div key={doc.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg">
+                      <div className="min-w-0">
                         <h4 className="font-medium">{doc.title}</h4>
                         <p className="text-sm text-gray-600">{doc.type}</p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
                         <Button 
                           variant="outline" 
                           size="sm"
@@ -3143,15 +3219,15 @@ export function AdminDashboard() {
                     <Vote className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-xl font-semibold mb-2 text-gray-600">Nenhum Documento na Ordem do Dia</h3>
                     <p className="text-gray-500">
-                      Use o botão "Para Ordem do Dia" nos documentos do Pequeno ou Grande Expediente
+                      Use o botão &quot;Para Ordem do Dia&quot; nos documentos do Pequeno ou Grande Expediente
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     {/* Documentos da Ordem do Dia */}
                     {documents.filter(doc => doc.isOrdemDoDia).map((doc) => (
-                      <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg bg-red-50">
-                        <div className="flex-1">
+                      <div key={doc.id} className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between p-4 border rounded-lg bg-red-50">
+                        <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <h4 className="font-medium">{doc.title}</h4>
                             <Badge className="bg-red-600">{doc.type}</Badge>
@@ -3168,7 +3244,7 @@ export function AdminDashboard() {
                             </Badge>
                           )}
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
                           <Button 
                             variant="outline" 
                             size="sm"
@@ -3273,6 +3349,7 @@ export function AdminDashboard() {
             <SessoesTab />
           </div>}
           </main>
+        </div>
         </div>
         
         {/* Modal para Adicionar Documentos */}

@@ -439,7 +439,7 @@ export function CouncilorDashboard() {
               <div className="text-center py-8 text-gray-500">
                 <Vote className="h-12 w-12 mx-auto mb-3 text-gray-300" />
                 <p className="font-medium">Aguardando Ordem do Dia</p>
-                <p className="text-sm">A votação será habilitada durante a fase "Ordem do Dia".</p>
+                <p className="text-sm">A votação será habilitada durante a fase &quot;Ordem do Dia&quot;.</p>
               </div>
             ) : !currentVoting?.isActive ? (
               <div className="text-center py-8 text-gray-500">
