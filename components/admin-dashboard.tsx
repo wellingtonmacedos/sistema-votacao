@@ -51,7 +51,8 @@ import {
   Upload,
   Loader2,
   BarChart,
-  Menu
+  Menu,
+  ExternalLink
 } from "lucide-react"
 import Link from "next/link"
 
@@ -1581,8 +1582,13 @@ export function AdminDashboard() {
     totalCount: number
     hasQuorum: boolean
     quorum: number
-  }>({ presentCount: 0, totalCount: 0, hasQuorum: false, quorum: 7 })
+    attendances: any[]
+  }>({ presentCount: 0, totalCount: 0, hasQuorum: false, quorum: 7, attendances: [] })
+  const [uploadingDocumentPdf, setUploadingDocumentPdf] = useState(false)
   const [activeVoting, setActiveVoting] = useState<any>(null)
+  const [isAttendanceJustificationOpen, setIsAttendanceJustificationOpen] = useState(false)
+  const [selectedAttendance, setSelectedAttendance] = useState<any>(null)
+  const [absenceJustification, setAbsenceJustification] = useState('')
   
   // Estados para o modal de adicionar documento
   const [isAddDocumentOpen, setIsAddDocumentOpen] = useState(false)
@@ -1593,6 +1599,10 @@ export function AdminDashboard() {
     type: '',
     content: '',
     sessionId: '',
+    attachmentName: '',
+    attachmentPath: '',
+    attachmentUrl: '',
+    attachmentMimeType: '',
     selectedAuthors: [] as string[] // IDs dos vereadores selecionados
   })
   const [councilorsForDocument, setCouncilorsForDocument] = useState<any[]>([]) // Lista de vereadores para o checkbox
@@ -1651,7 +1661,8 @@ export function AdminDashboard() {
             presentCount: attData.presentCount || 0,
             totalCount: attData.totalCount || 0,
             hasQuorum: attData.hasQuorum || false,
-            quorum: attData.quorum || 7
+            quorum: attData.quorum || 7,
+            attendances: attData.attendances || []
           })
         }
       }
@@ -1712,6 +1723,122 @@ export function AdminDashboard() {
       fetchAvailableSessions()
     }
   }, [isAddDocumentOpen])
+
+  const handleDocumentPdfUpload = async (file: File) => {
+    if (file.type !== 'application/pdf' || !file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('Envie um arquivo PDF válido')
+      return
+    }
+
+    setUploadingDocumentPdf(true)
+
+    try {
+      const presignedRes = await fetch('/api/upload/presigned', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: file.name,
+          contentType: file.type,
+          category: 'document'
+        })
+      })
+
+      if (!presignedRes.ok) {
+        const error = await presignedRes.json()
+        throw new Error(error.error || 'Erro ao gerar URL de upload do PDF')
+      }
+
+      const { uploadUrl, publicUrl, cloud_storage_path } = await presignedRes.json()
+
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file
+      })
+
+      if (!uploadRes.ok) {
+        throw new Error('Erro ao fazer upload do PDF')
+      }
+
+      setDocumentForm(prev => ({
+        ...prev,
+        attachmentName: file.name,
+        attachmentPath: cloud_storage_path,
+        attachmentUrl: publicUrl,
+        attachmentMimeType: file.type
+      }))
+
+      toast.success('PDF enviado com sucesso!')
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao enviar PDF')
+    } finally {
+      setUploadingDocumentPdf(false)
+    }
+  }
+
+  const openAttendanceJustification = (attendance: any) => {
+    setSelectedAttendance(attendance)
+    setAbsenceJustification(attendance.absenceJustification || '')
+    setIsAttendanceJustificationOpen(true)
+  }
+
+  const handleSaveAttendanceJustification = async () => {
+    if (!currentSession?.id || !selectedAttendance?.user?.id) return
+
+    if (!absenceJustification.trim()) {
+      toast.error('Informe a justificativa da falta')
+      return
+    }
+
+    try {
+      toast.loading('Salvando justificativa...', { id: 'attendance-justification' })
+
+      const response = await fetch('/api/admin/attendance-justification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: currentSession.id,
+          userId: selectedAttendance.user.id,
+          justification: absenceJustification
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erro ao salvar justificativa')
+      }
+
+      toast.success('Falta justificada com sucesso!', { id: 'attendance-justification' })
+      setIsAttendanceJustificationOpen(false)
+      setSelectedAttendance(null)
+      setAbsenceJustification('')
+      await fetchSessionData()
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao salvar justificativa', { id: 'attendance-justification' })
+    }
+  }
+
+  const handleRemoveAttendanceJustification = async (attendance: any) => {
+    if (!currentSession?.id || !attendance?.user?.id) return
+
+    try {
+      toast.loading('Removendo justificativa...', { id: 'attendance-justification-remove' })
+
+      const response = await fetch(`/api/admin/attendance-justification?sessionId=${currentSession.id}&userId=${attendance.user.id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erro ao remover justificativa')
+      }
+
+      toast.success('Justificativa removida com sucesso!', { id: 'attendance-justification-remove' })
+      await fetchSessionData()
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao remover justificativa', { id: 'attendance-justification-remove' })
+    }
+  }
 
   const startPhase = async (phase: string, navigateToTab: boolean = false) => {
     const phaseNames: Record<string, string> = {
@@ -1972,7 +2099,7 @@ export function AdminDashboard() {
         await fetchSessionData()
         
         if (action === 'start') {
-          toast.success('📋 Chamada de presença iniciada! Painel público exibindo lista de vereadores.', { 
+          toast.success('📋 Chamada aberta! Ela pode permanecer disponível durante toda a sessão para chegada tardia.', {
             id: 'attendance-control',
             duration: 4000
           })
@@ -2137,7 +2264,12 @@ export function AdminDashboard() {
     alert('Funcionalidade de Histórico em desenvolvimento!')
   }
 
-  const handleViewDocument = async (docId: string, docTitle: string, docContent?: string) => {
+  const handleViewDocument = async (_docId: string, docTitle: string, docContent?: string, attachmentUrl?: string) => {
+    if (attachmentUrl) {
+      window.open(attachmentUrl, '_blank', 'noopener,noreferrer')
+      return
+    }
+
     // Criar um modal de visualização ou abrir uma nova janela
     const content = docContent || `Conteúdo do documento: ${docTitle}\n\nEste é um documento da sessão legislativa que será exibido no painel público quando selecionado.`
     
@@ -2253,6 +2385,10 @@ export function AdminDashboard() {
       type: initialType,
       content: '',
       sessionId: currentSession?.id || '',
+      attachmentName: '',
+      attachmentPath: '',
+      attachmentUrl: '',
+      attachmentMimeType: '',
       selectedAuthors: []
     })
     setIsAddDocumentOpen(true)
@@ -2260,8 +2396,13 @@ export function AdminDashboard() {
 
   const handleSaveDocument = async () => {
     // Validação básica
-    if (!documentForm.title || !documentForm.type || !documentForm.content || !documentForm.sessionId) {
-      toast.error('Por favor, preencha todos os campos obrigatórios')
+    if (!documentForm.title || !documentForm.type || !documentForm.sessionId) {
+      toast.error('Por favor, preencha título, tipo e sessão')
+      return
+    }
+
+    if (!documentForm.content.trim() && !documentForm.attachmentUrl) {
+      toast.error('Informe um resumo/conteúdo ou anexe um PDF')
       return
     }
 
@@ -2283,7 +2424,11 @@ export function AdminDashboard() {
           content: documentForm.content,
           author: authorNames || null, // null se não houver autores selecionados
           sessionId: documentForm.sessionId,
-          phase: documentPhase
+          phase: documentPhase,
+          attachmentName: documentForm.attachmentName || null,
+          attachmentPath: documentForm.attachmentPath || null,
+          attachmentUrl: documentForm.attachmentUrl || null,
+          attachmentMimeType: documentForm.attachmentMimeType || null
         })
       })
 
@@ -2297,6 +2442,10 @@ export function AdminDashboard() {
           type: '',
           content: '',
           sessionId: '',
+          attachmentName: '',
+          attachmentPath: '',
+          attachmentUrl: '',
+          attachmentMimeType: '',
           selectedAuthors: []
         })
         setDocumentPhase('')
@@ -2320,6 +2469,10 @@ export function AdminDashboard() {
       type: '',
       content: '',
       sessionId: '',
+      attachmentName: '',
+      attachmentPath: '',
+      attachmentUrl: '',
+      attachmentMimeType: '',
       selectedAuthors: []
     })
     setDocumentPhase('')
@@ -2825,7 +2978,7 @@ export function AdminDashboard() {
                         className="h-16 bg-orange-600 hover:bg-orange-700 flex flex-col items-center"
                       >
                         <CheckCircle className="h-6 w-6 mb-1" />
-                        <span className="text-sm">Encerrar Quórum</span>
+                        <span className="text-sm">Fechar Chamada</span>
                       </Button>
                     ) : (
                       <Button 
@@ -2833,7 +2986,7 @@ export function AdminDashboard() {
                         className="h-16 bg-blue-600 hover:bg-blue-700 flex flex-col items-center"
                       >
                         <Users className="h-6 w-6 mb-1" />
-                        <span className="text-sm">Iniciar Quórum</span>
+                        <span className="text-sm">Abrir Chamada</span>
                       </Button>
                     )
                   )}
@@ -2862,6 +3015,9 @@ export function AdminDashboard() {
                       <strong>Timer:</strong> {timerActive ? 'Ativo' : 'Parado'}
                     </div>
                   </div>
+                  <p className="mt-3 text-xs text-blue-700">
+                    A chamada de presença pode ficar aberta durante toda a sessão para registrar vereadores que chegarem depois.
+                  </p>
                 </div>
 
                 {/* Controle de Votação Ativa */}
@@ -3045,6 +3201,104 @@ export function AdminDashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            {attendanceOpen && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-blue-600" />
+                    Gestão da Chamada
+                  </CardTitle>
+                  <p className="text-sm text-gray-500">
+                    Justifique faltas durante a chamada aberta. Se o vereador marcar presença depois, a justificativa é removida automaticamente.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {attendanceData.attendances.map((attendance) => (
+                      <div
+                        key={attendance.id}
+                        className={`rounded-xl border p-4 shadow-sm transition-colors ${
+                          attendance.isPresent
+                            ? 'border-green-200 bg-green-50'
+                            : attendance.absenceJustification
+                              ? 'border-amber-200 bg-amber-50'
+                              : 'border-gray-200 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{attendance.user.fullName}</h4>
+                            <p className="text-xs text-gray-500">
+                              {attendance.user.party || attendance.user.role}
+                            </p>
+                          </div>
+                          <Badge
+                            className={
+                              attendance.isPresent
+                                ? 'bg-green-600'
+                                : attendance.absenceJustification
+                                  ? 'bg-amber-500'
+                                  : 'bg-gray-500'
+                            }
+                          >
+                            {attendance.isPresent
+                              ? 'Presente'
+                              : attendance.absenceJustification
+                                ? 'Falta Justificada'
+                                : 'Ausente'}
+                          </Badge>
+                        </div>
+
+                        {attendance.isPresent ? (
+                          <p className="mt-3 text-sm text-green-700">
+                            Presença registrada às{' '}
+                            {attendance.arrivedAt
+                              ? new Date(attendance.arrivedAt).toLocaleTimeString('pt-BR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })
+                              : '--:--'}
+                          </p>
+                        ) : attendance.absenceJustification ? (
+                          <div className="mt-3 rounded-lg border border-amber-200 bg-white/70 p-3">
+                            <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
+                              Justificativa
+                            </p>
+                            <p className="mt-1 text-sm text-gray-700">{attendance.absenceJustification}</p>
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-sm text-gray-600">
+                            Ainda sem presença registrada e sem justificativa.
+                          </p>
+                        )}
+
+                        {!attendance.isPresent && (
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant={attendance.absenceJustification ? 'outline' : 'default'}
+                              onClick={() => openAttendanceJustification(attendance)}
+                            >
+                              {attendance.absenceJustification ? 'Editar justificativa' : 'Justificar falta'}
+                            </Button>
+                            {attendance.absenceJustification && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleRemoveAttendanceJustification(attendance)}
+                              >
+                                Remover
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>}
 
           {/* PEQUENO EXPEDIENTE */}
@@ -3069,11 +3323,21 @@ export function AdminDashboard() {
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => handleViewDocument(doc.id, doc.title)}
+                          onClick={() => handleViewDocument(doc.id, doc.title, doc.content, doc.attachmentUrl)}
                         >
                           <Eye className="h-4 w-4 mr-1" />
-                          Ver
+                          {doc.attachmentUrl ? 'Abrir PDF' : 'Ver'}
                         </Button>
+                        {doc.attachmentUrl && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(doc.attachmentUrl, '_blank', 'noopener,noreferrer')}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-1" />
+                            PDF
+                          </Button>
+                        )}
                         {readingDocument === doc.id ? (
                           <Button
                             variant="destructive"
@@ -3157,11 +3421,21 @@ export function AdminDashboard() {
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => handleViewDocument(doc.id, doc.title)}
+                          onClick={() => handleViewDocument(doc.id, doc.title, doc.content, doc.attachmentUrl)}
                         >
                           <Eye className="h-4 w-4 mr-1" />
-                          Ver
+                          {doc.attachmentUrl ? 'Abrir PDF' : 'Ver'}
                         </Button>
+                        {doc.attachmentUrl && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(doc.attachmentUrl, '_blank', 'noopener,noreferrer')}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-1" />
+                            PDF
+                          </Button>
+                        )}
                         {readingDocument === doc.id ? (
                           <Button
                             variant="destructive"
@@ -3179,6 +3453,26 @@ export function AdminDashboard() {
                           >
                             <Monitor className="h-4 w-4 mr-1" />
                             Mostrar no Painel
+                          </Button>
+                        )}
+                        {activeVoting?.type === 'document' && activeVoting?.id === doc.id ? (
+                          <Button
+                            size="sm"
+                            onClick={() => handleEndVoting('document', doc.id, doc.title)}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            <StopCircle className="h-4 w-4 mr-1" />
+                            Encerrar Votação
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => handleVoteDocument(doc.id)}
+                            className="bg-blue-600 hover:bg-blue-700"
+                            disabled={doc.isApproved !== null}
+                          >
+                            <Vote className="h-4 w-4 mr-1" />
+                            {doc.isApproved !== null ? 'Votado' : 'Votar'}
                           </Button>
                         )}
                         <Button 
@@ -3248,11 +3542,21 @@ export function AdminDashboard() {
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => handleViewDocument(doc.id, doc.title)}
+                            onClick={() => handleViewDocument(doc.id, doc.title, doc.content, doc.attachmentUrl)}
                           >
                             <Eye className="h-4 w-4 mr-1" />
-                            Ver
+                            {doc.attachmentUrl ? 'Abrir PDF' : 'Ver'}
                           </Button>
+                          {doc.attachmentUrl && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => window.open(doc.attachmentUrl, '_blank', 'noopener,noreferrer')}
+                            >
+                              <ExternalLink className="h-4 w-4 mr-1" />
+                              PDF
+                            </Button>
+                          )}
                           {readingDocument === doc.id ? (
                             <Button
                               variant="destructive"
@@ -3506,13 +3810,78 @@ export function AdminDashboard() {
               
               {/* Conteúdo do Documento */}
               <div>
-                <label className="text-sm font-medium block mb-1">Conteúdo do Documento *</label>
+                <label className="text-sm font-medium block mb-1">Conteúdo do Documento (opcional)</label>
                 <Textarea
                   value={documentForm.content}
                   onChange={(e) => setDocumentForm({...documentForm, content: e.target.value})}
-                  placeholder="Descreva o conteúdo principal do documento..."
+                  placeholder="Descreva o conteúdo principal do documento ou deixe um resumo para acompanhar o PDF..."
                   className="w-full min-h-[120px]"
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Você pode salvar com texto, com PDF, ou com ambos.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium block mb-1">Anexo em PDF (opcional)</label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          handleDocumentPdfUpload(file)
+                          e.currentTarget.value = ''
+                        }
+                      }}
+                    />
+                    <Button type="button" variant="outline" disabled={uploadingDocumentPdf} asChild>
+                      <span>
+                        {uploadingDocumentPdf ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Upload className="h-4 w-4 mr-2" />
+                        )}
+                        Enviar PDF
+                      </span>
+                    </Button>
+                  </label>
+                  {documentForm.attachmentName ? (
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-green-700">
+                      <span>{documentForm.attachmentName}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => window.open(documentForm.attachmentUrl, '_blank', 'noopener,noreferrer')}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-1" />
+                        Abrir
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDocumentForm({
+                          ...documentForm,
+                          attachmentName: '',
+                          attachmentPath: '',
+                          attachmentUrl: '',
+                          attachmentMimeType: ''
+                        })}
+                      >
+                        Remover
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">
+                      Anexe o arquivo oficial em PDF para consulta dos vereadores na sessão atual.
+                    </p>
+                  )}
+                </div>
               </div>
               
               {/* Fase (somente leitura) */}
@@ -3541,6 +3910,68 @@ export function AdminDashboard() {
               >
                 Cancelar
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={isAttendanceJustificationOpen}
+          onOpenChange={(open) => {
+            setIsAttendanceJustificationOpen(open)
+            if (!open) {
+              setSelectedAttendance(null)
+              setAbsenceJustification('')
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedAttendance?.absenceJustification ? 'Editar justificativa de falta' : 'Justificar falta'}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm font-medium text-amber-900">
+                  {selectedAttendance?.user?.fullName || 'Vereador'}
+                </p>
+                <p className="text-xs text-amber-700">
+                  Registre o motivo da ausência para exibição no painel durante a chamada.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">Justificativa</label>
+                <Textarea
+                  value={absenceJustification}
+                  onChange={(e) => setAbsenceJustification(e.target.value)}
+                  placeholder="Ex: compromisso oficial, atestado médico, viagem institucional..."
+                  className="min-h-[120px]"
+                  maxLength={500}
+                />
+                <p className="mt-1 text-right text-xs text-gray-500">
+                  {absenceJustification.length}/500
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleSaveAttendanceJustification}
+                  className="bg-amber-600 hover:bg-amber-700"
+                >
+                  Salvar justificativa
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsAttendanceJustificationOpen(false)
+                    setSelectedAttendance(null)
+                    setAbsenceJustification('')
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>

@@ -59,7 +59,15 @@ export async function GET() {
 
     // Criar mapa de presença
     const presenceMap = new Map(
-      attendanceRecords.map(a => [a.userId, { isPresent: a.isPresent, arrivedAt: a.arrivedAt }])
+      attendanceRecords.map(a => [
+        a.userId,
+        {
+          isPresent: a.isPresent,
+          arrivedAt: a.arrivedAt,
+          absenceJustification: a.absenceJustification,
+          absenceJustifiedAt: a.absenceJustifiedAt
+        }
+      ])
     )
 
     // Criar lista completa de vereadores com status de presença
@@ -69,6 +77,8 @@ export async function GET() {
         id: councilor.id,
         isPresent: presence?.isPresent || false,
         arrivedAt: presence?.arrivedAt || null,
+        absenceJustification: presence?.absenceJustification || null,
+        absenceJustifiedAt: presence?.absenceJustifiedAt || null,
         user: {
           id: councilor.id,
           fullName: councilor.fullName,
@@ -107,4 +117,3 @@ function getPartyMock(fullName: string) {
   const hash = fullName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return parties[hash % parties.length];
 }
-

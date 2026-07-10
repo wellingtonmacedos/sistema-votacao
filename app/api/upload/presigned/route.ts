@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
 
-    const { fileName, contentType } = await request.json();
+    const { fileName, contentType, category = 'image' } = await request.json();
 
     if (!fileName || !contentType) {
       return NextResponse.json(
@@ -23,15 +23,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validar tipo de arquivo (apenas imagens)
-    if (!contentType.startsWith('image/')) {
-      return NextResponse.json(
-        { error: "Apenas imagens são permitidas" },
-        { status: 400 }
-      );
+    if (category === 'document') {
+      const isPdf = contentType === 'application/pdf' && fileName.toLowerCase().endsWith('.pdf');
+
+      if (!isPdf) {
+        return NextResponse.json(
+          { error: "Apenas arquivos PDF são permitidos para documentos" },
+          { status: 400 }
+        );
+      }
+    } else {
+      // Validar tipo de arquivo (apenas imagens)
+      if (!contentType.startsWith('image/')) {
+        return NextResponse.json(
+          { error: "Apenas imagens são permitidas" },
+          { status: 400 }
+        );
+      }
     }
 
-    // Gerar URL de upload presigned (público para imagens de perfil)
+    // Gerar URL de upload presigned público para os arquivos do sistema.
     const { uploadUrl, cloud_storage_path } = await generatePresignedUploadUrl(
       fileName,
       contentType,

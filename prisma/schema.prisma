@@ -167,6 +167,9 @@ model Attendance {
   userId    String
   isPresent Boolean  @default(false)
   arrivedAt DateTime?
+  absenceJustification String?
+  absenceJustifiedAt   DateTime?
+  absenceJustifiedBy   String?
   createdAt DateTime @default(now())
 
   session   VotingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
@@ -199,6 +202,10 @@ model Document {
   type        String // Tipo livre (Ata, Requerimento, Projeto, etc)
   phase       String @default("PEQUENO_EXPEDIENTE") // Fase em que o documento foi criado
   content     String?
+  attachmentName String?
+  attachmentPath String?
+  attachmentUrl  String?
+  attachmentMimeType String?
   author      String? // Autor do documento (pode ser diferente do criador)
   description String?
   

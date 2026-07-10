@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { deleteFile, getFileUrl } from "@/lib/s3"
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,13 +15,56 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json()
-    const { title, type, content, author, sessionId, phase } = data
+    const {
+      title,
+      type,
+      content,
+      author,
+      sessionId,
+      phase,
+      attachmentName,
+      attachmentPath,
+      attachmentUrl,
+      attachmentMimeType
+    } = data
 
     // Validação básica
-    if (!title || !type || !content || !sessionId) {
+    if (!title || !type || !sessionId) {
       return NextResponse.json({ 
-        error: 'Campos obrigatórios: title, type, content, sessionId' 
+        error: 'Campos obrigatórios: title, type e sessionId' 
       }, { status: 400 })
+    }
+
+    const trimmedContent = typeof content === 'string' ? content.trim() : ''
+    const hasAttachment =
+      Boolean(attachmentName) ||
+      Boolean(attachmentPath) ||
+      Boolean(attachmentUrl) ||
+      Boolean(attachmentMimeType)
+
+    if (!trimmedContent && !hasAttachment) {
+      return NextResponse.json({
+        error: 'Informe o conteúdo do documento ou anexe um PDF'
+      }, { status: 400 })
+    }
+
+    if (hasAttachment) {
+      const isValidAttachment =
+        typeof attachmentName === 'string' &&
+        typeof attachmentPath === 'string' &&
+        typeof attachmentUrl === 'string' &&
+        typeof attachmentMimeType === 'string' &&
+        attachmentMimeType === 'application/pdf' &&
+        attachmentName.toLowerCase().endsWith('.pdf') &&
+        attachmentPath.toLowerCase().endsWith('.pdf') &&
+        /^[a-zA-Z0-9._/-]+$/.test(attachmentPath) &&
+        attachmentUrl === getFileUrl(attachmentPath, true)
+
+      if (!isValidAttachment) {
+        return NextResponse.json({
+          error: 'Anexo PDF inválido'
+        }, { status: 400 })
+      }
     }
 
     // Verificar se a sessão de votação existe
@@ -47,7 +91,11 @@ export async function POST(request: NextRequest) {
         title,
         type,
         phase: phase || 'PEQUENO_EXPEDIENTE',
-        content,
+        content: trimmedContent || null,
+        attachmentName: hasAttachment ? attachmentName : null,
+        attachmentPath: hasAttachment ? attachmentPath : null,
+        attachmentUrl: hasAttachment ? attachmentUrl : null,
+        attachmentMimeType: hasAttachment ? attachmentMimeType : null,
         author: author || null,
         sessionId,
         createdBy: session.user.id,
@@ -67,6 +115,8 @@ export async function POST(request: NextRequest) {
       title: document.title,
       type: document.type,
       author: document.author,
+      attachmentName: document.attachmentName,
+      attachmentUrl: document.attachmentUrl,
       creator: document.creator.fullName
     })
 
@@ -77,6 +127,8 @@ export async function POST(request: NextRequest) {
         title: document.title,
         type: document.type,
         author: document.author,
+        attachmentName: document.attachmentName,
+        attachmentUrl: document.attachmentUrl,
         creator: document.creator.fullName,
         createdAt: document.createdAt
       }
@@ -158,6 +210,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ 
         error: 'Documento não encontrado' 
       }, { status: 404 })
+    }
+
+    if (existingDocument.attachmentPath) {
+      await deleteFile(existingDocument.attachmentPath)
     }
 
     // Deletar o documento

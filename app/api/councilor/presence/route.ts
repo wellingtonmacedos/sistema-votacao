@@ -60,7 +60,10 @@ export async function POST(request: NextRequest) {
       },
       update: {
         isPresent: true,
-        arrivedAt: new Date()
+        arrivedAt: new Date(),
+        absenceJustification: null,
+        absenceJustifiedAt: null,
+        absenceJustifiedBy: null
       },
       create: {
         sessionId: currentSession.id,

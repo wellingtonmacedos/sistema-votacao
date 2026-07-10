@@ -63,6 +63,8 @@ interface AttendanceData {
     id: string
     isPresent: boolean
     arrivedAt: string | null
+    absenceJustification: string | null
+    absenceJustifiedAt: string | null
     user: {
       id: string
       fullName: string
@@ -392,14 +394,18 @@ export function PublicDisplayPanel() {
                     className={`group relative overflow-hidden rounded-lg transition-all duration-300 ${
                       attendance.isPresent 
                         ? 'bg-gradient-to-br from-emerald-500/40 to-green-600/30 border border-emerald-400/50' 
-                        : 'bg-gradient-to-br from-slate-600/30 to-gray-700/20 border border-gray-500/30'
+                        : attendance.absenceJustification
+                          ? 'bg-gradient-to-br from-amber-500/35 to-yellow-600/20 border border-amber-400/50'
+                          : 'bg-gradient-to-br from-slate-600/30 to-gray-700/20 border border-gray-500/30'
                     } shadow-lg backdrop-blur-sm`}
                   >
                     {/* Status indicator no topo */}
                     <div className={`absolute top-0 left-0 right-0 h-0.5 ${
                       attendance.isPresent 
                         ? 'bg-gradient-to-r from-emerald-400 to-green-500' 
-                        : 'bg-gradient-to-r from-gray-400 to-slate-500'
+                        : attendance.absenceJustification
+                          ? 'bg-gradient-to-r from-amber-300 to-yellow-500'
+                          : 'bg-gradient-to-r from-gray-400 to-slate-500'
                     }`}></div>
 
                     <div className="relative p-2 text-center">
@@ -412,7 +418,9 @@ export function PublicDisplayPanel() {
                             className={`w-10 h-10 mx-auto rounded-full object-cover shadow-md ${
                               attendance.isPresent 
                                 ? 'ring-2 ring-emerald-400/60' 
-                                : 'ring-2 ring-gray-400/40 grayscale opacity-70'
+                                : attendance.absenceJustification
+                                  ? 'ring-2 ring-amber-300/70 opacity-90'
+                                  : 'ring-2 ring-gray-400/40 grayscale opacity-70'
                             }`}
                             onError={(e) => {
                               e.currentTarget.style.display = 'none'
@@ -424,16 +432,18 @@ export function PublicDisplayPanel() {
                         <div className={`w-10 h-10 mx-auto rounded-full items-center justify-center text-white font-bold text-sm shadow-md ${
                           attendance.isPresent 
                             ? 'bg-gradient-to-br from-emerald-500 to-green-600 ring-2 ring-emerald-400/40' 
-                            : 'bg-gradient-to-br from-gray-500 to-slate-600 ring-2 ring-gray-400/30'
+                            : attendance.absenceJustification
+                              ? 'bg-gradient-to-br from-amber-500 to-yellow-600 ring-2 ring-amber-300/50'
+                              : 'bg-gradient-to-br from-gray-500 to-slate-600 ring-2 ring-gray-400/30'
                         } ${attendance.user.photoUrl ? 'hidden' : 'flex'}`}>
                           {attendance.user.fullName.split(' ').map(n => n[0]).slice(0, 2).join('')}
                         </div>
                         
                         {/* Status badge no avatar */}
                         <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold shadow ${
-                          attendance.isPresent ? 'bg-green-500' : 'bg-red-500'
+                          attendance.isPresent ? 'bg-green-500' : attendance.absenceJustification ? 'bg-amber-500' : 'bg-red-500'
                         }`}>
-                          {attendance.isPresent ? '✓' : '×'}
+                          {attendance.isPresent ? '✓' : attendance.absenceJustification ? '!' : '×'}
                         </div>
                       </div>
                       
@@ -464,6 +474,10 @@ export function PublicDisplayPanel() {
                             <div className="w-1.5 h-1.5 bg-white rounded-full mr-1 animate-pulse"></div>
                             PRESENTE
                           </div>
+                        ) : attendance.absenceJustification ? (
+                          <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-600 text-white font-bold text-[8px] shadow">
+                            FALTA JUSTIFICADA
+                          </div>
                         ) : (
                           <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-gradient-to-r from-gray-500 to-slate-600 text-white font-bold text-[8px] shadow">
                             AUSENTE
@@ -478,6 +492,11 @@ export function PublicDisplayPanel() {
                             hour: '2-digit',
                             minute: '2-digit'
                           })}
+                        </div>
+                      )}
+                      {!attendance.isPresent && attendance.absenceJustification && (
+                        <div className="mt-1 rounded bg-black/10 px-1.5 py-1 text-[8px] leading-tight text-amber-100">
+                          {attendance.absenceJustification}
                         </div>
                       )}
                     </div>

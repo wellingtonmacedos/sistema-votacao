@@ -35,7 +35,8 @@ import {
   Hand,
   Users,
   FileText,
-  Loader2
+  Loader2,
+  ExternalLink
 } from "lucide-react"
 
 // Tipos
@@ -91,6 +92,19 @@ interface CouncilorStatus {
   queuePosition: number | null
 }
 
+interface SessionDocument {
+  id: string
+  title: string
+  type: string
+  phase: string
+  author: string
+  content: string
+  attachmentName: string | null
+  attachmentUrl: string | null
+  attachmentMimeType: string | null
+  createdAt: string
+}
+
 // Mapeamento de fases
 const phaseLabels: Record<string, string> = {
   'SCHEDULED': 'Agendada',
@@ -119,6 +133,7 @@ export function CouncilorDashboard() {
   const [votingInProgress, setVotingInProgress] = useState(false)
   const [presenceLoading, setPresenceLoading] = useState(false)
   const [speechLoading, setSpeechLoading] = useState(false)
+  const [sessionDocuments, setSessionDocuments] = useState<SessionDocument[]>([])
   const [voteConfirmDialog, setVoteConfirmDialog] = useState<{
     open: boolean
     voteType: 'YES' | 'NO' | 'ABSTENTION' | null
@@ -139,12 +154,28 @@ export function CouncilorDashboard() {
     }
   }, [])
 
+  const fetchDocuments = useCallback(async () => {
+    try {
+      const response = await fetch('/api/councilor/documents')
+      if (response.ok) {
+        const data = await response.json()
+        setSessionDocuments(data)
+      }
+    } catch (error) {
+      console.error('Erro ao buscar documentos da sessão:', error)
+    }
+  }, [])
+
   // Polling a cada 3 segundos
   useEffect(() => {
     fetchStatus()
-    const interval = setInterval(fetchStatus, 3000)
+    fetchDocuments()
+    const interval = setInterval(() => {
+      fetchStatus()
+      fetchDocuments()
+    }, 3000)
     return () => clearInterval(interval)
-  }, [fetchStatus])
+  }, [fetchDocuments, fetchStatus])
 
   // Marcar presença
   const handleMarkPresence = async () => {
@@ -410,6 +441,61 @@ export function CouncilorDashboard() {
                   <p className="font-medium">Chamada Fechada</p>
                   <p className="text-sm">Aguarde a abertura da chamada pelo presidente.</p>
                 </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="mb-6 border border-gray-200 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileText className="h-5 w-5 text-indigo-600" />
+              Documentos da Sessão
+            </CardTitle>
+            <CardDescription>
+              Consulte apenas os documentos cadastrados nesta sessão legislativa.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {sessionDocuments.length === 0 ? (
+              <div className="text-center py-6 text-gray-500">
+                <FileText className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+                <p className="font-medium">Nenhum documento cadastrado nesta sessão</p>
+                <p className="text-sm">Os PDFs anexados pelo administrador aparecerão aqui para consulta.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {sessionDocuments.map((document) => (
+                  <div key={document.id} className="rounded-lg border border-gray-200 bg-white p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-semibold text-gray-900">{document.title}</h3>
+                          <Badge variant="outline">{document.type}</Badge>
+                        </div>
+                        <p className="mt-1 text-sm text-gray-600">
+                          {document.author ? `Autor: ${document.author}` : 'Autor não informado'} • {document.phase.replace(/_/g, ' ')}
+                        </p>
+                        {document.content && (
+                          <p className="mt-2 text-sm text-gray-600">{document.content}</p>
+                        )}
+                      </div>
+                      {document.attachmentUrl ? (
+                        <Button
+                          onClick={() => window.open(document.attachmentUrl!, '_blank', 'noopener,noreferrer')}
+                          className="w-full sm:w-auto"
+                        >
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Abrir PDF
+                        </Button>
+                      ) : (
+                        <Badge variant="secondary" className="w-fit">
+                          Sem PDF anexo
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
