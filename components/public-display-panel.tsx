@@ -8,6 +8,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
 import { Clock, Users, FileText, Vote, User, BookOpen, Mic, CheckCircle } from "lucide-react"
 
+const SHOW_CONSIDERACOES_FINAIS_SPEAKER_CARD: boolean = false
+
 interface SessionData {
   id: string
   title: string
@@ -1207,7 +1209,7 @@ export function PublicDisplayPanel() {
         )}
 
         {/* Vereador Falando nas Considerações Finais */}
-        {currentSpeaker && sessionData.status === 'CONSIDERACOES_FINAIS' && !attendanceData?.isAttendanceOpen && false && (
+        {currentSpeaker && sessionData.status === 'CONSIDERACOES_FINAIS' && !attendanceData?.isAttendanceOpen && SHOW_CONSIDERACOES_FINAIS_SPEAKER_CARD && (
           <Card className="lg:col-span-2 bg-white/10 backdrop-blur-sm border-white/20">
             <CardContent className="p-6 h-full">
               <div className="flex items-center mb-6">

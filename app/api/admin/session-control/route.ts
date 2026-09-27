@@ -34,15 +34,24 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // Criar registros de presença em batch
-      await prisma.attendance.createMany({
-        data: councilors.map(councilor => ({
+      // Criar registros de presença em batch, ignorando os já existentes
+      const existingAttendances = await prisma.attendance.findMany({
+        where: { sessionId },
+        select: { userId: true }
+      });
+      const alreadyRegistered = new Set(existingAttendances.map(a => a.userId));
+
+      const missingAttendances = councilors
+        .filter(councilor => !alreadyRegistered.has(councilor.id))
+        .map(councilor => ({
           sessionId: sessionId,
           userId: councilor.id,
           isPresent: false
-        })),
-        skipDuplicates: true
-      });
+        }));
+
+      if (missingAttendances.length > 0) {
+        await prisma.attendance.createMany({ data: missingAttendances });
+      }
 
       return NextResponse.json({
         message: "Sessão iniciada com sucesso",

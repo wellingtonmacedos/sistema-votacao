@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/db";
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-const prisma = new PrismaClient();
 
 // Buscar quem está falando atualmente e seus processos legislativos
 export async function GET(request: NextRequest) {
