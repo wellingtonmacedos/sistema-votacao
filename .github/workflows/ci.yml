@@ -8,8 +8,23 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: votacao
+          POSTGRES_PASSWORD: votacao
+          POSTGRES_DB: votacao
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U votacao -d votacao"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
-      DATABASE_URL: "file:./dev.db"
+      DATABASE_URL: postgresql://votacao:votacao@localhost:5432/votacao?schema=public
+      SHADOW_DATABASE_URL: postgresql://votacao:votacao@localhost:5432/shadow?schema=public
       NEXTAUTH_SECRET: ci-placeholder-secret
       NEXTAUTH_URL: http://localhost:3000
     steps:
@@ -31,12 +46,16 @@ jobs:
         run: pnpm exec prisma generate
 
       - name: Migrations em sincronia com o schema
-        run: >
-          pnpm exec prisma migrate diff
-          --from-migrations prisma/migrations
-          --to-schema-datamodel prisma/schema.prisma
-          --shadow-database-url "file:/tmp/shadow.db"
-          --exit-code
+        run: |
+          PGPASSWORD=votacao psql -h localhost -U votacao -d votacao -c 'CREATE DATABASE shadow'
+          pnpm exec prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url "$SHADOW_DATABASE_URL" \
+            --exit-code
+
+      - name: Aplicar migrations em Postgres vazio
+        run: pnpm exec prisma migrate deploy
 
       - name: Lint
         run: pnpm lint
