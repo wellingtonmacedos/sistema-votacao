@@ -1,35 +1,40 @@
 # Banco de dados e migrations
 
-O schema do banco fica em `prisma/schema.prisma` e o histórico de alterações em `prisma/migrations/`.
-A URL do banco vem da variável `DATABASE_URL` (veja `.env.example`). Em desenvolvimento o padrão é o SQLite `prisma/dev.db`.
+O sistema usa **PostgreSQL**. O schema fica em `prisma/schema.prisma` e o histórico de alterações em `prisma/migrations/`.
+A URL do banco vem da variável `DATABASE_URL` (veja `.env.example`).
 
-## Primeira configuração
-
-1. Copie o arquivo de exemplo e preencha `NEXTAUTH_SECRET`:
-   ```
-   cp .env.example .env        # Windows: copy .env.example .env
-   ```
-2. Faça backup do banco antes de qualquer passo abaixo (copie `prisma/dev.db`).
-
-### Banco que já existia antes das migrations
-
-Bancos criados com `prisma db push` já têm todas as tabelas, mas não têm o histórico de migrations.
-Rode **uma única vez** em cada banco existente para marcar a migration inicial como já aplicada (não altera nenhum dado):
-```
-pnpm exec prisma migrate resolve --applied 0_init
-```
-Confira com `pnpm exec prisma migrate status` — deve mostrar "Database schema is up to date!".
-
-### Banco novo (vazio)
+## Desenvolvimento local (Docker)
 
 ```
+cp .env.example .env          # Windows: copy .env.example .env  — preencha NEXTAUTH_SECRET
+docker compose up -d          # sobe o Postgres em localhost:5432 (usuário/senha/banco: votacao)
 pnpm exec prisma migrate deploy
-pnpm exec prisma db seed     # opcional: dados de exemplo
+pnpm dev
 ```
+
+Para dados de exemplo num banco vazio: `pnpm exec prisma db seed` (o seed **apaga** os dados existentes).
+
+## Migrar os dados do SQLite antigo (`prisma/dev.db`)
+
+Até a versão v1.2.0 o sistema usava SQLite. Para levar esses dados para o Postgres:
+
+1. Faça uma cópia de segurança do `prisma/dev.db`.
+2. Com `DATABASE_URL` apontando para um Postgres **vazio**, aplique as migrations:
+   ```
+   pnpm exec prisma migrate deploy
+   ```
+3. Copie os dados (requer Node 22.5 ou superior):
+   ```
+   node --env-file=.env scripts/copy-sqlite-to-postgres.mjs prisma/dev.db
+   ```
+   O script lê o SQLite em modo somente leitura, recusa rodar se o destino já tiver dados, copia tudo numa única
+   transação e, ao final, compara tabela por tabela (quantidade e conteúdo) entre origem e destino.
+
+O mesmo procedimento vale para staging e produção (ex.: Supabase), trocando apenas a `DATABASE_URL`.
 
 ## Alterando o schema
 
-Não use mais `prisma db push`. Depois de editar `prisma/schema.prisma`:
+Não use `prisma db push`. Depois de editar `prisma/schema.prisma`:
 ```
 pnpm exec prisma migrate dev --name descricao-curta-da-mudanca
 ```
