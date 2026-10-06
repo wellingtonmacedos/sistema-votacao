@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const currentSession = await prisma.votingSession.findFirst({
       where: {
         status: {
-          in: ['PEQUENO_EXPEDIENTE', 'GRANDE_EXPEDIENTE', 'ORDEM_DO_DIA', 'CONSIDERACOES_FINAIS', 'TRIBUNA_LIVE']
+          notIn: ['SCHEDULED', 'CLOSED']
         }
       },
       select: {

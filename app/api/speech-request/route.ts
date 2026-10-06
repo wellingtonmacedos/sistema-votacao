@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       const currentSession = await prisma.votingSession.findFirst({
         where: {
           status: {
-            in: ['SCHEDULED', 'PEQUENO_EXPEDIENTE', 'GRANDE_EXPEDIENTE', 'ORDEM_DO_DIA', 'CONSIDERACOES_FINAIS', 'TRIBUNA_LIVE']
+            not: 'CLOSED'
           }
         }
       });
@@ -93,22 +93,15 @@ export async function POST(request: NextRequest) {
       });
 
       // Verificar status válido se não for admin (opcional, mas recomendado para consistência)
-      if (currentSession && session.user.role !== 'ADMIN') {
-        const validStatuses = ['SCHEDULED', 'PEQUENO_EXPEDIENTE', 'GRANDE_EXPEDIENTE', 'ORDEM_DO_DIA', 'CONSIDERACOES_FINAIS', 'TRIBUNA_LIVE'];
-        if (!validStatuses.includes(currentSession.status)) {
-           // Se a sessão estiver fechada ou em status inválido, podemos bloquear ou permitir dependendo da regra de negócio.
-           // Assumindo que só pode solicitar em sessões ativas:
-           if (currentSession.status === 'CLOSED') {
-             return NextResponse.json({ error: "Sessão encerrada" }, { status: 400 });
-           }
-        }
+      if (currentSession && session.user.role !== 'ADMIN' && currentSession.status === 'CLOSED') {
+        return NextResponse.json({ error: "Sessão encerrada" }, { status: 400 });
       }
     } else {
       // Buscar sessão atual ativa (fallback)
       currentSession = await prisma.votingSession.findFirst({
         where: {
           status: {
-            in: ['SCHEDULED', 'PEQUENO_EXPEDIENTE', 'GRANDE_EXPEDIENTE', 'ORDEM_DO_DIA', 'CONSIDERACOES_FINAIS', 'TRIBUNA_LIVE']
+            not: 'CLOSED'
           }
         },
         orderBy: [

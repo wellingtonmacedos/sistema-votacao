@@ -52,23 +52,56 @@ import {
   Loader2,
   BarChart,
   Menu,
-  ExternalLink
+  ExternalLink,
+  Layers
 } from "lucide-react"
 import Link from "next/link"
+import { usePhases } from "@/hooks/use-phases"
+import { PhasesManager } from "@/components/phases-manager"
+import {
+  type PhaseDefinition,
+  activePhases,
+  phaseBadgeClass,
+  phaseColor,
+  phaseLabel,
+  SESSION_CLOSED,
+  SESSION_SCHEDULED,
+} from "@/lib/phases"
 
 // Definição dos itens do menu lateral
-const menuItems = [
+const menuItemsBeforePhases = [
   { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard, color: 'text-blue-600' },
   { id: 'vereadores', label: 'Vereadores', icon: Users, color: 'text-indigo-600' },
   { id: 'sessoes', label: 'Sessões', icon: Calendar, color: 'text-purple-600' },
   { id: 'painel', label: 'Painel Público', icon: Monitor, color: 'text-cyan-600' },
-  { id: 'pequeno', label: 'Peq. Expediente', icon: FileText, color: 'text-green-600' },
-  { id: 'grande', label: 'Gr. Expediente', icon: ScrollText, color: 'text-emerald-600' },
-  { id: 'ordem', label: 'Ordem do Dia', icon: ListChecks, color: 'text-orange-600' },
-  { id: 'consideracoes', label: 'Considerações', icon: MessageSquare, color: 'text-violet-600' },
-  { id: 'tribuna', label: 'Tribuna Livre', icon: Megaphone, color: 'text-amber-600' },
+]
+
+const menuItemsAfterPhases = [
+  { id: 'fases', label: 'Configurar Fases', icon: Layers, color: 'text-slate-600' },
   { id: 'relatorios', label: 'Relatórios', icon: BarChart, color: 'text-pink-600', href: '/admin/relatorios' },
 ]
+
+const phaseTabId = (key: string) => `fase:${key}`
+
+const phaseIcon = (phase: PhaseDefinition) => {
+  if (phase.speechType === 'TRIBUNA_LIVE') return Megaphone
+  if (phase.speechType === 'CONSIDERACOES_FINAIS') return MessageSquare
+  if (phase.isVotingAgenda) return ListChecks
+  if (phase.hasDocuments) return FileText
+  if (phase.hasVoting) return Vote
+  return ScrollText
+}
+
+// Documentos legados (sem fase própria) continuam listados nas fases padrão pelo tipo
+const DOCUMENT_TYPE_OPTIONS_BY_PHASE: Record<string, { value: string; label: string }[]> = {
+  GRANDE_EXPEDIENTE: [{ value: 'REQUERIMENTO', label: 'Requerimento' }, { value: 'PROJETO', label: 'Projeto' }],
+  ORDEM_DO_DIA: [{ value: 'PROJETO', label: 'Projeto' }, { value: 'REQUERIMENTO', label: 'Requerimento' }],
+}
+
+const LEGACY_DOCUMENT_TYPES_BY_PHASE: Record<string, string[]> = {
+  PEQUENO_EXPEDIENTE: ['ATA_ANTERIOR', 'DISPENSA_ATA', 'COMUNICADO'],
+  GRANDE_EXPEDIENTE: ['REQUERIMENTO', 'PROJETO', 'INDICACAO', 'MOCAO'],
+}
 
 // Componente para gerenciar Considerações Finais
 function ConsideracoesFinaisTab() {
@@ -1318,6 +1351,7 @@ function VereadoresTab() {
 
 // Componente para gerenciar Sessões
 function SessoesTab() {
+  const { phases } = usePhases()
   const [sessions, setSessions] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -1413,16 +1447,9 @@ function SessoesTab() {
   }
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'SCHEDULED': return <Badge className="bg-blue-500">Agendada</Badge>
-      case 'PEQUENO_EXPEDIENTE': return <Badge className="bg-yellow-500">Peq. Expediente</Badge>
-      case 'GRANDE_EXPEDIENTE': return <Badge className="bg-orange-500">Gr. Expediente</Badge>
-      case 'ORDEM_DO_DIA': return <Badge className="bg-purple-500">Ordem do Dia</Badge>
-      case 'CONSIDERACOES_FINAIS': return <Badge className="bg-indigo-500">Considerações</Badge>
-      case 'TRIBUNA_LIVE': return <Badge className="bg-pink-500">Tribuna Livre</Badge>
-      case 'CLOSED': return <Badge className="bg-gray-500">Encerrada</Badge>
-      default: return <Badge>{status}</Badge>
-    }
+    if (status === SESSION_SCHEDULED) return <Badge className="bg-blue-500">Agendada</Badge>
+    if (status === SESSION_CLOSED) return <Badge className="bg-gray-500">Encerrada</Badge>
+    return <Badge className={phaseBadgeClass(phases, status)}>{phaseLabel(phases, status)}</Badge>
   }
 
   const formatDate = (dateStr: string) => {
@@ -1567,6 +1594,20 @@ function SessoesTab() {
 }
 
 export function AdminDashboard() {
+  const { phases, refresh: refreshPhases } = usePhases()
+  const sessionPhases = activePhases(phases)
+  const votingAgendaPhase = sessionPhases.find((phase) => phase.isVotingAgenda)
+  const agendaName = votingAgendaPhase?.name ?? 'Ordem do Dia'
+  const menuItems = [
+    ...menuItemsBeforePhases,
+    ...sessionPhases.map((phase) => ({
+      id: phaseTabId(phase.key),
+      label: phase.name,
+      icon: phaseIcon(phase),
+      color: phaseColor(phase.color).icon,
+    })),
+    ...menuItemsAfterPhases,
+  ]
   const [activeTab, setActiveTab] = useState('overview')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -1841,25 +1882,9 @@ export function AdminDashboard() {
   }
 
   const startPhase = async (phase: string, navigateToTab: boolean = false) => {
-    const phaseNames: Record<string, string> = {
-      'PEQUENO_EXPEDIENTE': 'Pequeno Expediente',
-      'GRANDE_EXPEDIENTE': 'Grande Expediente',
-      'ORDEM_DO_DIA': 'Ordem do Dia',
-      'CONSIDERACOES_FINAIS': 'Considerações Finais',
-      'TRIBUNA_LIVE': 'Tribuna Livre',
-      'CLOSED': 'Encerrada'
-    }
+    const phaseName = phaseLabel(phases, phase)
 
-    // Mapeamento de fases para tabs do menu
-    const phaseToTab: Record<string, string> = {
-      'PEQUENO_EXPEDIENTE': 'pequeno',
-      'GRANDE_EXPEDIENTE': 'grande',
-      'ORDEM_DO_DIA': 'ordem',
-      'CONSIDERACOES_FINAIS': 'consideracoes',
-      'TRIBUNA_LIVE': 'tribuna'
-    }
-    
-    toast.loading(`Iniciando ${phaseNames[phase] || phase}...`, { id: 'phase-change' })
+    toast.loading(`Iniciando ${phaseName}...`, { id: 'phase-change' })
     
     try {
       const response = await fetch('/api/session/update-status', {
@@ -1871,14 +1896,14 @@ export function AdminDashboard() {
       if (response.ok) {
         setSessionPhase(phase)
         await fetchSessionData()
-        toast.success(`✅ Fase "${phaseNames[phase]}" iniciada com sucesso!`, { 
+        toast.success(`✅ Fase "${phaseName}" iniciada com sucesso!`, { 
           id: 'phase-change',
           duration: 3000
         })
         
         // Navegar para a tab correspondente se solicitado
-        if (navigateToTab && phaseToTab[phase]) {
-          setActiveTab(phaseToTab[phase])
+        if (navigateToTab && sessionPhases.some((p) => p.key === phase)) {
+          setActiveTab(phaseTabId(phase))
         }
       } else {
         const error = await response.json()
@@ -1892,15 +1917,8 @@ export function AdminDashboard() {
 
   // Função para navegar diretamente para a gestão de uma fase
   const goToPhaseManagement = (phase: string) => {
-    const phaseToTab: Record<string, string> = {
-      'PEQUENO_EXPEDIENTE': 'pequeno',
-      'GRANDE_EXPEDIENTE': 'grande',
-      'ORDEM_DO_DIA': 'ordem',
-      'CONSIDERACOES_FINAIS': 'consideracoes',
-      'TRIBUNA_LIVE': 'tribuna'
-    }
-    if (phaseToTab[phase]) {
-      setActiveTab(phaseToTab[phase])
+    if (sessionPhases.some((p) => p.key === phase)) {
+      setActiveTab(phaseTabId(phase))
     }
   }
 
@@ -1932,7 +1950,7 @@ export function AdminDashboard() {
   // Mover documento para Ordem do Dia
   const handleMoveToOrdemDoDia = async (documentId: string, documentTitle: string) => {
     try {
-      toast.loading(`Movendo "${documentTitle}" para Ordem do Dia...`, { id: 'move-ordem' })
+      toast.loading(`Movendo "${documentTitle}" para ${agendaName}...`, { id: 'move-ordem' })
       
       const response = await fetch('/api/admin/move-to-ordem-dia', {
         method: 'POST',
@@ -1942,7 +1960,7 @@ export function AdminDashboard() {
 
       if (response.ok) {
         const data = await response.json()
-        toast.success('✓ Documento movido para Ordem do Dia!', { id: 'move-ordem', duration: 4000 })
+        toast.success(`✓ Documento movido para ${agendaName}!`, { id: 'move-ordem', duration: 4000 })
         await fetchSessionData()
       } else {
         const error = await response.json()
@@ -1956,7 +1974,7 @@ export function AdminDashboard() {
 
   // Remover documento da Ordem do Dia
   const handleRemoveFromOrdemDoDia = async (documentId: string, documentTitle: string) => {
-    if (!confirm(`Deseja remover "${documentTitle}" da Ordem do Dia?`)) {
+    if (!confirm(`Deseja remover "${documentTitle}" de ${agendaName}?`)) {
       return
     }
 
@@ -1970,7 +1988,7 @@ export function AdminDashboard() {
       })
 
       if (response.ok) {
-        toast.success('Documento removido da Ordem do Dia!', { id: 'remove-ordem' })
+        toast.success(`Documento removido de ${agendaName}!`, { id: 'remove-ordem' })
         await fetchSessionData()
       } else {
         const error = await response.json()
@@ -2120,18 +2138,7 @@ export function AdminDashboard() {
     }
   }
 
-  const getPhaseTitle = (phase: string) => {
-    const phases: Record<string, string> = {
-      'SCHEDULED': 'Agendada',
-      'PEQUENO_EXPEDIENTE': 'Pequeno Expediente', 
-      'GRANDE_EXPEDIENTE': 'Grande Expediente',
-      'ORDEM_DO_DIA': 'Ordem do Dia',
-      'CONSIDERACOES_FINAIS': 'Considerações Finais',
-      'TRIBUNA_LIVE': 'Tribuna Livre',
-      'CLOSED': 'Encerrada'
-    }
-    return phases[phase] || phase
-  }
+  const getPhaseTitle = (phase: string) => phaseLabel(phases, phase)
 
   const handleStartVoting = async (matterId: string) => {
     // Confirmar antes de iniciar a votação
@@ -2366,19 +2373,10 @@ export function AdminDashboard() {
   }
 
   const handleAddDocument = (phase: string) => {
-    // Definir o tipo de documento baseado na fase
-    const documentTypes: Record<string, string[]> = {
-      'GRANDE_EXPEDIENTE': ['REQUERIMENTO', 'PROJETO'],
-      'ORDEM_DO_DIA': ['PROJETO', 'REQUERIMENTO']
-    }
-    
     setDocumentPhase(phase)
     
-    // Para Pequeno Expediente, o tipo é livre (string vazia inicial)
-    // Para outros, usa o primeiro tipo da lista
-    const initialType = phase === 'PEQUENO_EXPEDIENTE' 
-      ? '' 
-      : (documentTypes[phase]?.[0] || 'REQUERIMENTO')
+    // Fases com lista de tipos usam o primeiro tipo; nas demais o tipo é livre
+    const initialType = DOCUMENT_TYPE_OPTIONS_BY_PHASE[phase]?.[0]?.value ?? ''
 
     setDocumentForm({
       title: '',
@@ -2481,6 +2479,231 @@ export function AdminDashboard() {
 
   const handleApproveSpeech = (speechId: string) => {
     alert(`Aprovando solicitação de fala ID: ${speechId}`)
+  }
+
+  const currentPhaseTab = sessionPhases.find((phase) => phaseTabId(phase.key) === activeTab)
+
+  const renderPhaseDocuments = (phase: PhaseDefinition) => {
+    const legacyTypes = LEGACY_DOCUMENT_TYPES_BY_PHASE[phase.key] ?? []
+    const phaseDocuments = documents.filter(doc => doc.phase === phase.key || legacyTypes.includes(doc.type))
+    const lockAfterVote = phase.key !== 'PEQUENO_EXPEDIENTE'
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className={`h-5 w-5 ${phaseColor(phase.color).icon}`} />
+            {phase.name} - Documentos
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {phaseDocuments.length === 0 && (
+              <p className="text-sm text-gray-500">Nenhum documento cadastrado nesta fase.</p>
+            )}
+            {phaseDocuments.map((doc) => (
+              <div key={doc.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg">
+                <div className="min-w-0">
+                  <h4 className="font-medium">{doc.title}</h4>
+                  <p className="text-sm text-gray-600">{doc.type}</p>
+                </div>
+                <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleViewDocument(doc.id, doc.title, doc.content, doc.attachmentUrl)}
+                  >
+                    <Eye className="h-4 w-4 mr-1" />
+                    {doc.attachmentUrl ? 'Abrir PDF' : 'Ver'}
+                  </Button>
+                  {doc.attachmentUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(doc.attachmentUrl, '_blank', 'noopener,noreferrer')}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-1" />
+                      PDF
+                    </Button>
+                  )}
+                  {readingDocument === doc.id ? (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setDocumentReading(doc.id, false)}
+                    >
+                      <StopCircle className="h-4 w-4 mr-1" />
+                      Parar Exibição
+                    </Button>
+                  ) : (
+                    <Button 
+                      size="sm"
+                      onClick={() => setDocumentReading(doc.id, true)}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Monitor className="h-4 w-4 mr-1" />
+                      Mostrar no Painel
+                    </Button>
+                  )}
+                  {phase.hasVoting && (activeVoting?.type === 'document' && activeVoting?.id === doc.id ? (
+                    <Button 
+                      size="sm"
+                      onClick={() => handleEndVoting('document', doc.id, doc.title)}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      <StopCircle className="h-4 w-4 mr-1" />
+                      Encerrar Votação
+                    </Button>
+                  ) : (
+                    <Button 
+                      size="sm"
+                      onClick={() => handleVoteDocument(doc.id)}
+                      className="bg-blue-600 hover:bg-blue-700"
+                      disabled={lockAfterVote && doc.isApproved !== null}
+                    >
+                      <Vote className="h-4 w-4 mr-1" />
+                      {lockAfterVote && doc.isApproved !== null ? 'Votado' : 'Votar'}
+                    </Button>
+                  ))}
+                  {votingAgendaPhase && (
+                    <Button 
+                      size="sm"
+                      className="bg-purple-600 hover:bg-purple-700"
+                      onClick={() => handleMoveToOrdemDoDia(doc.id, doc.title)}
+                    >
+                      <ArrowRight className="h-4 w-4 mr-1" />
+                      Para {votingAgendaPhase.name}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="pt-4 border-t mt-6">
+            <Button onClick={() => handleAddDocument(phase.key)}>
+              <Plus className="h-4 w-4 mr-1" />
+              Adicionar Documento
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const renderVotingAgenda = (phase: PhaseDefinition) => {
+    const agendaDocuments = documents.filter(doc => doc.isOrdemDoDia)
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Vote className={`h-5 w-5 ${phaseColor(phase.color).icon}`} />
+            {phase.name} - Documentos para Votação
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {agendaDocuments.length === 0 ? (
+            <div className="text-center py-12">
+              <Vote className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold mb-2 text-gray-600">Nenhum documento em {phase.name}</h3>
+              <p className="text-gray-500">
+                Use o botão &quot;Para {phase.name}&quot; nos documentos das outras fases
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {agendaDocuments.map((doc) => (
+                <div key={doc.id} className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between p-4 border rounded-lg bg-red-50">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-medium">{doc.title}</h4>
+                      <Badge className="bg-red-600">{doc.type}</Badge>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      {doc.author && `Autor: ${doc.author}`}
+                    </p>
+                    {doc.isApproved !== null && (
+                      <Badge 
+                        variant={doc.isApproved ? "default" : "destructive"}
+                        className="mt-2"
+                      >
+                        {doc.isApproved ? '✓ Aprovado' : '✗ Rejeitado'}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleViewDocument(doc.id, doc.title, doc.content, doc.attachmentUrl)}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      {doc.attachmentUrl ? 'Abrir PDF' : 'Ver'}
+                    </Button>
+                    {doc.attachmentUrl && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(doc.attachmentUrl, '_blank', 'noopener,noreferrer')}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-1" />
+                        PDF
+                      </Button>
+                    )}
+                    {readingDocument === doc.id ? (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setDocumentReading(doc.id, false)}
+                      >
+                        <StopCircle className="h-4 w-4 mr-1" />
+                        Parar Exibição
+                      </Button>
+                    ) : (
+                      <Button 
+                        size="sm"
+                        onClick={() => setDocumentReading(doc.id, true)}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <Monitor className="h-4 w-4 mr-1" />
+                        Mostrar no Painel
+                      </Button>
+                    )}
+                    {phase.hasVoting && (activeVoting?.type === 'document' && activeVoting?.id === doc.id ? (
+                      <Button 
+                        size="sm"
+                        onClick={() => handleEndVoting('document', doc.id, doc.title)}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        <StopCircle className="h-4 w-4 mr-1" />
+                        Encerrar Votação
+                      </Button>
+                    ) : (
+                      <Button 
+                        size="sm"
+                        onClick={() => handleVoteDocument(doc.id)}
+                        className="bg-red-600 hover:bg-red-700"
+                        disabled={doc.isApproved !== null}
+                      >
+                        <Vote className="h-4 w-4 mr-1" />
+                        {doc.isApproved !== null ? 'Votado' : 'Votar'}
+                      </Button>
+                    ))}
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRemoveFromOrdemDoDia(doc.id, doc.title)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Remover
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    )
   }
 
   const activeTabInfo = menuItems.find((item) => item.id === activeTab)
@@ -3065,76 +3288,26 @@ export function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div 
-                    onClick={() => startPhase('PEQUENO_EXPEDIENTE', true)}
-                    className={`h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
-                      sessionPhase === 'PEQUENO_EXPEDIENTE' 
-                        ? 'bg-blue-100 border-blue-500 text-blue-700' 
-                        : 'bg-white border-gray-200 hover:border-blue-400 hover:bg-blue-50'
-                    }`}
-                  >
-                    <Clock className={`h-6 w-6 ${sessionPhase === 'PEQUENO_EXPEDIENTE' ? 'text-blue-600' : 'text-gray-500'}`} />
-                    <span className="font-medium text-sm">Pequeno Expediente</span>
-                    {sessionPhase === 'PEQUENO_EXPEDIENTE' && (
-                      <Badge className="bg-blue-600 text-[10px]">ATIVO</Badge>
-                    )}
-                  </div>
-                  <div 
-                    onClick={() => startPhase('GRANDE_EXPEDIENTE', true)}
-                    className={`h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
-                      sessionPhase === 'GRANDE_EXPEDIENTE' 
-                        ? 'bg-purple-100 border-purple-500 text-purple-700' 
-                        : 'bg-white border-gray-200 hover:border-purple-400 hover:bg-purple-50'
-                    }`}
-                  >
-                    <FileText className={`h-6 w-6 ${sessionPhase === 'GRANDE_EXPEDIENTE' ? 'text-purple-600' : 'text-gray-500'}`} />
-                    <span className="font-medium text-sm">Grande Expediente</span>
-                    {sessionPhase === 'GRANDE_EXPEDIENTE' && (
-                      <Badge className="bg-purple-600 text-[10px]">ATIVO</Badge>
-                    )}
-                  </div>
-                  <div 
-                    onClick={() => startPhase('ORDEM_DO_DIA', true)}
-                    className={`h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
-                      sessionPhase === 'ORDEM_DO_DIA' 
-                        ? 'bg-red-100 border-red-500 text-red-700' 
-                        : 'bg-white border-gray-200 hover:border-red-400 hover:bg-red-50'
-                    }`}
-                  >
-                    <Vote className={`h-6 w-6 ${sessionPhase === 'ORDEM_DO_DIA' ? 'text-red-600' : 'text-gray-500'}`} />
-                    <span className="font-medium text-sm">Ordem do Dia</span>
-                    {sessionPhase === 'ORDEM_DO_DIA' && (
-                      <Badge className="bg-red-600 text-[10px]">ATIVO</Badge>
-                    )}
-                  </div>
-                  <div 
-                    onClick={() => startPhase('CONSIDERACOES_FINAIS', true)}
-                    className={`h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
-                      sessionPhase === 'CONSIDERACOES_FINAIS' 
-                        ? 'bg-green-100 border-green-500 text-green-700' 
-                        : 'bg-white border-gray-200 hover:border-green-400 hover:bg-green-50'
-                    }`}
-                  >
-                    <MessageSquare className={`h-6 w-6 ${sessionPhase === 'CONSIDERACOES_FINAIS' ? 'text-green-600' : 'text-gray-500'}`} />
-                    <span className="font-medium text-sm">Considerações Finais</span>
-                    {sessionPhase === 'CONSIDERACOES_FINAIS' && (
-                      <Badge className="bg-green-600 text-[10px]">ATIVO</Badge>
-                    )}
-                  </div>
-                  <div 
-                    onClick={() => startPhase('TRIBUNA_LIVE', true)}
-                    className={`h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
-                      sessionPhase === 'TRIBUNA_LIVE' 
-                        ? 'bg-yellow-100 border-yellow-500 text-yellow-700' 
-                        : 'bg-white border-gray-200 hover:border-yellow-400 hover:bg-yellow-50'
-                    }`}
-                  >
-                    <Mic className={`h-6 w-6 ${sessionPhase === 'TRIBUNA_LIVE' ? 'text-yellow-600' : 'text-gray-500'}`} />
-                    <span className="font-medium text-sm">Tribuna Livre</span>
-                    {sessionPhase === 'TRIBUNA_LIVE' && (
-                      <Badge className="bg-yellow-600 text-[10px]">ATIVO</Badge>
-                    )}
-                  </div>
+                  {sessionPhases.map((phase) => {
+                    const Icon = phaseIcon(phase)
+                    const colors = phaseColor(phase.color)
+                    const isCurrent = sessionPhase === phase.key
+                    return (
+                      <div
+                        key={phase.id}
+                        onClick={() => startPhase(phase.key, true)}
+                        className={`h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
+                          isCurrent ? colors.activeCard : `bg-white border-gray-200 ${colors.card}`
+                        }`}
+                      >
+                        <Icon className={`h-6 w-6 ${isCurrent ? colors.icon : 'text-gray-500'}`} />
+                        <span className="font-medium text-sm text-center px-2">{phase.name}</span>
+                        {isCurrent && (
+                          <Badge className={`${colors.badge} text-[10px]`}>ATIVO</Badge>
+                        )}
+                      </div>
+                    )
+                  })}
                   <div 
                     onClick={() => startPhase('CLOSED')}
                     className="h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 bg-white border-gray-200 hover:border-gray-500 hover:bg-gray-100"
@@ -3143,6 +3316,11 @@ export function AdminDashboard() {
                     <span className="font-medium text-sm text-gray-700">Encerrar Sessão</span>
                   </div>
                 </div>
+                {sessionPhases.length === 0 && (
+                  <p className="text-sm text-gray-500 mt-4">
+                    Nenhuma fase cadastrada. Use o menu &quot;Configurar Fases&quot; para cadastrar as fases da sessão.
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -3301,346 +3479,50 @@ export function AdminDashboard() {
             )}
           </div>}
 
-          {/* PEQUENO EXPEDIENTE */}
-          {activeTab === 'pequeno' && <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                  Pequeno Expediente - Documentos Oficiais
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {/* Documentos do Pequeno Expediente */}
-                  {documents.filter(doc => (doc.phase === 'PEQUENO_EXPEDIENTE' || ['ATA_ANTERIOR', 'DISPENSA_ATA', 'COMUNICADO'].includes(doc.type))).map((doc) => (
-                    <div key={doc.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg">
-                      <div className="min-w-0">
-                        <h4 className="font-medium">{doc.title}</h4>
-                        <p className="text-sm text-gray-600">{doc.type}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleViewDocument(doc.id, doc.title, doc.content, doc.attachmentUrl)}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          {doc.attachmentUrl ? 'Abrir PDF' : 'Ver'}
-                        </Button>
-                        {doc.attachmentUrl && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => window.open(doc.attachmentUrl, '_blank', 'noopener,noreferrer')}
-                          >
-                            <ExternalLink className="h-4 w-4 mr-1" />
-                            PDF
-                          </Button>
-                        )}
-                        {readingDocument === doc.id ? (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => setDocumentReading(doc.id, false)}
-                          >
-                            <StopCircle className="h-4 w-4 mr-1" />
-                            Parar Exibição
-                          </Button>
-                        ) : (
-                          <Button 
-                            size="sm"
-                            onClick={() => setDocumentReading(doc.id, true)}
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            <Monitor className="h-4 w-4 mr-1" />
-                            Mostrar no Painel
-                          </Button>
-                        )}
-                        {activeVoting?.type === 'document' && activeVoting?.id === doc.id ? (
-                          <Button 
-                            size="sm"
-                            onClick={() => handleEndVoting('document', doc.id, doc.title)}
-                            className="bg-red-600 hover:bg-red-700"
-                          >
-                            <StopCircle className="h-4 w-4 mr-1" />
-                            Encerrar Votação
-                          </Button>
-                        ) : (
-                          <Button 
-                            size="sm"
-                            onClick={() => handleVoteDocument(doc.id)}
-                            className="bg-blue-600 hover:bg-blue-700"
-                          >
-                            <Vote className="h-4 w-4 mr-1" />
-                            Votar
-                          </Button>
-                        )}
-                        <Button 
-                          size="sm"
-                          className="bg-purple-600 hover:bg-purple-700"
-                          onClick={() => handleMoveToOrdemDoDia(doc.id, doc.title)}
-                        >
-                          <ArrowRight className="h-4 w-4 mr-1" />
-                          Para Ordem do Dia
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="pt-4 border-t mt-6">
-                  <Button onClick={() => handleAddDocument('PEQUENO_EXPEDIENTE')}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Adicionar Documento
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+          {/* FASES DA SESSÃO */}
+          {currentPhaseTab && <div className="space-y-6">
+            {currentPhaseTab.hasDocuments && renderPhaseDocuments(currentPhaseTab)}
+            {currentPhaseTab.isVotingAgenda && renderVotingAgenda(currentPhaseTab)}
+            {currentPhaseTab.speechType === 'CONSIDERACOES_FINAIS' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className={`h-5 w-5 ${phaseColor(currentPhaseTab.color).icon}`} />
+                    {currentPhaseTab.name} - Solicitações de Fala
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ConsideracoesFinaisTab />
+                </CardContent>
+              </Card>
+            )}
+            {currentPhaseTab.speechType === 'TRIBUNA_LIVE' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mic className={`h-5 w-5 ${phaseColor(currentPhaseTab.color).icon}`} />
+                    {currentPhaseTab.name} - Manifestações Públicas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <TribunaLivreTab />
+                </CardContent>
+              </Card>
+            )}
+            {!currentPhaseTab.hasDocuments && !currentPhaseTab.isVotingAgenda && !currentPhaseTab.speechType && (
+              <Card>
+                <CardContent className="py-12 text-center text-gray-500">
+                  <ScrollText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p className="font-medium">{currentPhaseTab.name}</p>
+                  <p className="text-sm">Esta fase não tem documentos, pauta de votação nem inscrições de fala configurados.</p>
+                </CardContent>
+              </Card>
+            )}
           </div>}
 
-          {/* GRANDE EXPEDIENTE */}
-          {activeTab === 'grande' && <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-purple-600" />
-                  Grande Expediente - Requerimentos e Projetos
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {/* Documentos do Grande Expediente */}
-                  {documents.filter(doc => (doc.phase === 'GRANDE_EXPEDIENTE' || ['REQUERIMENTO', 'PROJETO', 'INDICACAO', 'MOCAO'].includes(doc.type))).map((doc) => (
-                    <div key={doc.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg">
-                      <div className="min-w-0">
-                        <h4 className="font-medium">{doc.title}</h4>
-                        <p className="text-sm text-gray-600">{doc.type}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleViewDocument(doc.id, doc.title, doc.content, doc.attachmentUrl)}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          {doc.attachmentUrl ? 'Abrir PDF' : 'Ver'}
-                        </Button>
-                        {doc.attachmentUrl && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => window.open(doc.attachmentUrl, '_blank', 'noopener,noreferrer')}
-                          >
-                            <ExternalLink className="h-4 w-4 mr-1" />
-                            PDF
-                          </Button>
-                        )}
-                        {readingDocument === doc.id ? (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => setDocumentReading(doc.id, false)}
-                          >
-                            <StopCircle className="h-4 w-4 mr-1" />
-                            Parar Exibição
-                          </Button>
-                        ) : (
-                          <Button 
-                            size="sm"
-                            onClick={() => setDocumentReading(doc.id, true)}
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            <Monitor className="h-4 w-4 mr-1" />
-                            Mostrar no Painel
-                          </Button>
-                        )}
-                        {activeVoting?.type === 'document' && activeVoting?.id === doc.id ? (
-                          <Button
-                            size="sm"
-                            onClick={() => handleEndVoting('document', doc.id, doc.title)}
-                            className="bg-red-600 hover:bg-red-700"
-                          >
-                            <StopCircle className="h-4 w-4 mr-1" />
-                            Encerrar Votação
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            onClick={() => handleVoteDocument(doc.id)}
-                            className="bg-blue-600 hover:bg-blue-700"
-                            disabled={doc.isApproved !== null}
-                          >
-                            <Vote className="h-4 w-4 mr-1" />
-                            {doc.isApproved !== null ? 'Votado' : 'Votar'}
-                          </Button>
-                        )}
-                        <Button 
-                          size="sm"
-                          className="bg-purple-600 hover:bg-purple-700"
-                          onClick={() => handleMoveToOrdemDoDia(doc.id, doc.title)}
-                        >
-                          <ArrowRight className="h-4 w-4 mr-1" />
-                          Para Ordem do Dia
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="pt-4 border-t mt-6">
-                  <Button onClick={() => handleAddDocument('GRANDE_EXPEDIENTE')}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Adicionar Documento
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>}
-
-          {/* ORDEM DO DIA */}
-          {activeTab === 'ordem' && <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Vote className="h-5 w-5 text-red-600" />
-                  Ordem do Dia - Documentos para Votação
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {documents.filter(doc => doc.isOrdemDoDia).length === 0 ? (
-                  <div className="text-center py-12">
-                    <Vote className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold mb-2 text-gray-600">Nenhum Documento na Ordem do Dia</h3>
-                    <p className="text-gray-500">
-                      Use o botão &quot;Para Ordem do Dia&quot; nos documentos do Pequeno ou Grande Expediente
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Documentos da Ordem do Dia */}
-                    {documents.filter(doc => doc.isOrdemDoDia).map((doc) => (
-                      <div key={doc.id} className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between p-4 border rounded-lg bg-red-50">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium">{doc.title}</h4>
-                            <Badge className="bg-red-600">{doc.type}</Badge>
-                          </div>
-                          <p className="text-sm text-gray-600">
-                            {doc.author && `Autor: ${doc.author}`}
-                          </p>
-                          {doc.isApproved !== null && (
-                            <Badge 
-                              variant={doc.isApproved ? "default" : "destructive"}
-                              className="mt-2"
-                            >
-                              {doc.isApproved ? '✓ Aprovado' : '✗ Rejeitado'}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleViewDocument(doc.id, doc.title, doc.content, doc.attachmentUrl)}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            {doc.attachmentUrl ? 'Abrir PDF' : 'Ver'}
-                          </Button>
-                          {doc.attachmentUrl && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => window.open(doc.attachmentUrl, '_blank', 'noopener,noreferrer')}
-                            >
-                              <ExternalLink className="h-4 w-4 mr-1" />
-                              PDF
-                            </Button>
-                          )}
-                          {readingDocument === doc.id ? (
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => setDocumentReading(doc.id, false)}
-                            >
-                              <StopCircle className="h-4 w-4 mr-1" />
-                              Parar Exibição
-                            </Button>
-                          ) : (
-                            <Button 
-                              size="sm"
-                              onClick={() => setDocumentReading(doc.id, true)}
-                              className="bg-green-600 hover:bg-green-700"
-                            >
-                              <Monitor className="h-4 w-4 mr-1" />
-                              Mostrar no Painel
-                            </Button>
-                          )}
-                          {activeVoting?.type === 'document' && activeVoting?.id === doc.id ? (
-                            <Button 
-                              size="sm"
-                              onClick={() => handleEndVoting('document', doc.id, doc.title)}
-                              className="bg-red-600 hover:bg-red-700"
-                            >
-                              <StopCircle className="h-4 w-4 mr-1" />
-                              Encerrar Votação
-                            </Button>
-                          ) : (
-                            <Button 
-                              size="sm"
-                              onClick={() => handleVoteDocument(doc.id)}
-                              className="bg-red-600 hover:bg-red-700"
-                              disabled={doc.isApproved !== null}
-                            >
-                              <Vote className="h-4 w-4 mr-1" />
-                              {doc.isApproved !== null ? 'Votado' : 'Votar'}
-                            </Button>
-                          )}
-                          <Button 
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleRemoveFromOrdemDoDia(doc.id, doc.title)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Remover
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>}
-
-          {/* CONSIDERAÇÕES FINAIS */}
-          {activeTab === 'consideracoes' && <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5 text-green-600" />
-                  Considerações Finais - Solicitações de Fala
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ConsideracoesFinaisTab />
-              </CardContent>
-            </Card>
-          </div>}
-
-          {/* TRIBUNA LIVRE */}
-          {activeTab === 'tribuna' && <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mic className="h-5 w-5 text-yellow-600" />
-                  Tribuna Livre - Manifestações Públicas
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <TribunaLivreTab />
-              </CardContent>
-            </Card>
+          {/* CONFIGURAÇÃO DAS FASES */}
+          {activeTab === 'fases' && <div className="space-y-6">
+            <PhasesManager phases={sessionPhases} currentPhaseKey={sessionPhase} onChange={refreshPhases} />
           </div>}
 
           {/* GESTÃO DE VEREADORES */}
@@ -3702,7 +3584,7 @@ export function AdminDashboard() {
               {/* Tipo de Documento */}
               <div>
                 <label className="text-sm font-medium block mb-1">Tipo de Documento *</label>
-                {documentPhase === 'PEQUENO_EXPEDIENTE' ? (
+                {!DOCUMENT_TYPE_OPTIONS_BY_PHASE[documentPhase] ? (
                   <Input
                     value={documentForm.type}
                     onChange={(e) => setDocumentForm({...documentForm, type: e.target.value})}
@@ -3718,18 +3600,9 @@ export function AdminDashboard() {
                       <SelectValue placeholder="Selecione o tipo" />
                     </SelectTrigger>
                     <SelectContent>
-                      {documentPhase === 'GRANDE_EXPEDIENTE' && (
-                        <>
-                          <SelectItem value="REQUERIMENTO">Requerimento</SelectItem>
-                          <SelectItem value="PROJETO">Projeto</SelectItem>
-                        </>
-                      )}
-                      {documentPhase === 'ORDEM_DO_DIA' && (
-                        <>
-                          <SelectItem value="PROJETO">Projeto</SelectItem>
-                          <SelectItem value="REQUERIMENTO">Requerimento</SelectItem>
-                        </>
-                      )}
+                      {DOCUMENT_TYPE_OPTIONS_BY_PHASE[documentPhase].map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )}
