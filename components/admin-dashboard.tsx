@@ -104,7 +104,7 @@ const LEGACY_DOCUMENT_TYPES_BY_PHASE: Record<string, string[]> = {
 }
 
 // Componente para gerenciar Considerações Finais
-function ConsideracoesFinaisTab() {
+function ConsideracoesFinaisTab({ phaseName }: { phaseName: string }) {
   const [speechRequests, setSpeechRequests] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
   const [selectedUser, setSelectedUser] = useState('')
@@ -342,7 +342,7 @@ function ConsideracoesFinaisTab() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Cadastrar Vereador nas Considerações Finais</DialogTitle>
+                <DialogTitle>Cadastrar Vereador - {phaseName}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
@@ -519,7 +519,7 @@ function ConsideracoesFinaisTab() {
   )
 }
 // Componente para gerenciar Tribuna Livre
-function TribunaLivreTab() {
+function TribunaLivreTab({ phaseName }: { phaseName: string }) {
   const [speechRequests, setSpeechRequests] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
   const [selectedUser, setSelectedUser] = useState('')
@@ -662,7 +662,7 @@ function TribunaLivreTab() {
       })
       
       if (response.ok) {
-        toast.success('Cidadão cadastrado na Tribuna Livre!')
+        toast.success(`Cidadão cadastrado - ${phaseName}!`)
         setSelectedUser('')
         setSpeechSubject('')
         setManifestationSubject('')
@@ -726,7 +726,7 @@ function TribunaLivreTab() {
       {/* Controles de inscrições */}
       <div className="flex justify-between items-center gap-4">
         <div className="flex items-center gap-3">
-          <h3 className="text-lg font-semibold">Gerenciar Tribuna Livre</h3>
+          <h3 className="text-lg font-semibold">Gerenciar {phaseName}</h3>
           <Badge 
             variant={sessionStatus?.isSpeechRequestsOpen ? "default" : "secondary"}
             className={sessionStatus?.isSpeechRequestsOpen ? "bg-yellow-600" : ""}
@@ -761,7 +761,7 @@ function TribunaLivreTab() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Cadastrar Cidadão na Tribuna Livre</DialogTitle>
+                <DialogTitle>Cadastrar Cidadão - {phaseName}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
@@ -1598,6 +1598,7 @@ export function AdminDashboard() {
   const sessionPhases = activePhases(phases)
   const votingAgendaPhase = sessionPhases.find((phase) => phase.isVotingAgenda)
   const agendaName = votingAgendaPhase?.name ?? 'Ordem do Dia'
+  const councilorSpeechPhaseName = sessionPhases.find((phase) => phase.speechType === 'CONSIDERACOES_FINAIS')?.name ?? 'Considerações Finais'
   const menuItems = [
     ...menuItemsBeforePhases,
     ...sessionPhases.map((phase) => ({
@@ -3093,7 +3094,7 @@ export function AdminDashboard() {
                 <div className="border-t pt-6 space-y-4">
                   <h4 className="text-lg font-semibold flex items-center gap-2">
                     <Timer className="h-5 w-5" />
-                    Timer para Considerações Finais
+                    Timer para {councilorSpeechPhaseName}
                   </h4>
                   
                   <div className="flex flex-col sm:flex-row sm:items-center gap-4">
@@ -3133,7 +3134,7 @@ export function AdminDashboard() {
                   {timerActive && (
                     <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                       <p className="text-orange-800 font-medium">
-                        ⏱️ Timer ativo no painel público - Considerações Finais
+                        ⏱️ Timer ativo no painel público - {councilorSpeechPhaseName}
                       </p>
                     </div>
                   )}
@@ -3492,7 +3493,7 @@ export function AdminDashboard() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ConsideracoesFinaisTab />
+                  <ConsideracoesFinaisTab phaseName={currentPhaseTab.name} />
                 </CardContent>
               </Card>
             )}
@@ -3505,7 +3506,7 @@ export function AdminDashboard() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <TribunaLivreTab />
+                  <TribunaLivreTab phaseName={currentPhaseTab.name} />
                 </CardContent>
               </Card>
             )}

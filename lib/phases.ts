@@ -57,3 +57,18 @@ export const phaseAllowsVoting = (phases: PhaseDefinition[], key: string | null 
 
 export const phaseSpeechType = (phases: PhaseDefinition[], key: string | null | undefined) =>
   findPhase(phases, key)?.speechType ?? null
+
+const DEFAULT_SPEECH_PHASE_NAMES: Record<PhaseSpeechType, string> = {
+  CONSIDERACOES_FINAIS: 'Considerações Finais',
+  TRIBUNA_LIVE: 'Tribuna Livre',
+}
+
+export function speechPhaseName(
+  phases: PhaseDefinition[],
+  currentKey: string | null | undefined,
+  type: PhaseSpeechType
+): string {
+  const current = findPhase(phases, currentKey)
+  if (current?.speechType === type) return current.name
+  return activePhases(phases).find((phase) => phase.speechType === type)?.name ?? DEFAULT_SPEECH_PHASE_NAMES[type]
+}

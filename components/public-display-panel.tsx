@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
 import { Clock, Users, FileText, Vote, User, BookOpen, Mic, CheckCircle } from "lucide-react"
 import { usePhases } from "@/hooks/use-phases"
-import { phaseBadgeClass, phaseLabel, phaseSpeechType } from "@/lib/phases"
+import { phaseBadgeClass, phaseLabel, phaseSpeechType, speechPhaseName } from "@/lib/phases"
 
 const SHOW_CONSIDERACOES_FINAIS_SPEAKER_CARD: boolean = false
 
@@ -256,6 +256,8 @@ export function PublicDisplayPanel() {
   }
 
   const isCouncilorSpeechPhase = phaseSpeechType(phases, sessionData?.status) === 'CONSIDERACOES_FINAIS'
+  const councilorSpeechName = speechPhaseName(phases, sessionData?.status, 'CONSIDERACOES_FINAIS')
+  const citizenSpeechName = speechPhaseName(phases, sessionData?.status, 'TRIBUNA_LIVE')
 
   if (!sessionData) {
     return (
@@ -789,7 +791,7 @@ export function PublicDisplayPanel() {
                     </div>
                     <div>
                       <h3 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-purple-200 mb-1 tracking-wide">
-                        CONSIDERAÇÕES FINAIS
+                        {councilorSpeechName.toUpperCase()}
                       </h3>
                       <p className="text-lg text-purple-100/90 font-medium">
                         {isSpeechRequestsOpen ? 'Inscrições abertas' : 'Lista de inscritos'}
@@ -989,7 +991,7 @@ export function PublicDisplayPanel() {
                     </div>
                     <div>
                       <h3 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-yellow-200 mb-1 tracking-wide">
-                        TRIBUNA LIVRE
+                        {citizenSpeechName.toUpperCase()}
                       </h3>
                       <p className="text-lg text-yellow-100/90 font-medium">
                         {isSpeechRequestsOpen ? 'Manifestações abertas' : 'Lista de manifestações'}
@@ -1217,7 +1219,7 @@ export function PublicDisplayPanel() {
                     {currentSpeaker.user.fullName}
                   </h3>
                   <p className="text-lg opacity-80">
-                    Considerações Finais - {currentSpeaker.subject}
+                    {councilorSpeechName} - {currentSpeaker.subject}
                   </p>
                 </div>
                 <div className="ml-auto">
@@ -1341,7 +1343,7 @@ export function PublicDisplayPanel() {
                 <FileText className="h-16 w-16 mx-auto mb-4 opacity-50" />
                 <p className="text-xl">
                   {isCouncilorSpeechPhase ? 
-                    'Aguardando vereador para considerações finais' :
+                    `Aguardando vereador - ${councilorSpeechName}` :
                     'Nenhum documento sendo exibido no momento'
                   }
                 </p>
