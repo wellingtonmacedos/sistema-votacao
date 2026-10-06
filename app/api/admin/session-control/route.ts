@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { firstActivePhaseKey } from "@/lib/phases-server";
 
 // Controlar sessão (iniciar/encerrar)
 export async function POST(request: NextRequest) {
@@ -17,11 +18,16 @@ export async function POST(request: NextRequest) {
     const { action, sessionId } = await request.json();
 
     if (action === 'start') {
+      const firstPhase = await firstActivePhaseKey();
+      if (!firstPhase) {
+        return NextResponse.json({ error: "Nenhuma fase cadastrada. Cadastre as fases da sessão antes de iniciar." }, { status: 400 });
+      }
+
       // Iniciar sessão
       const updatedSession = await prisma.votingSession.update({
         where: { id: sessionId },
         data: {
-          status: 'PEQUENO_EXPEDIENTE',
+          status: firstPhase,
           startedAt: new Date()
         }
       });

@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
 import { Clock, Users, FileText, Vote, User, BookOpen, Mic, CheckCircle } from "lucide-react"
+import { usePhases } from "@/hooks/use-phases"
+import { phaseBadgeClass, phaseLabel, phaseSpeechType, speechPhaseName } from "@/lib/phases"
 
 const SHOW_CONSIDERACOES_FINAIS_SPEAKER_CARD: boolean = false
 
@@ -99,6 +101,7 @@ interface SpeechRequestData {
 
 export function PublicDisplayPanel() {
   const [sessionData, setSessionData] = useState<SessionData | null>(null)
+  const { phases } = usePhases()
   const [currentSpeaker, setCurrentSpeaker] = useState<CurrentSpeakerData | null>(null)
   const [attendanceData, setAttendanceData] = useState<AttendanceData | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
@@ -242,15 +245,8 @@ export function PublicDisplayPanel() {
   }, [readingDocument?.id])
 
   const getStatusDisplay = (status: string) => {
-    const statusMap: Record<string, { label: string; color: string }> = {
-      PEQUENO_EXPEDIENTE: { label: "PEQUENO EXPEDIENTE", color: "bg-blue-500" },
-      GRANDE_EXPEDIENTE: { label: "GRANDE EXPEDIENTE", color: "bg-green-500" },
-      ORDEM_DO_DIA: { label: "ORDEM DO DIA", color: "bg-red-500" },
-      CONSIDERACOES_FINAIS: { label: "CONSIDERAÇÕES FINAIS", color: "bg-purple-500" },
-      TRIBUNA_LIVE: { label: "TRIBUNA LIVRE", color: "bg-yellow-500" },
-      CLOSED: { label: "SESSÃO ENCERRADA", color: "bg-gray-500" }
-    }
-    return statusMap[status] || { label: status, color: "bg-gray-500" }
+    if (status === 'CLOSED') return { label: "SESSÃO ENCERRADA", color: "bg-gray-500" }
+    return { label: phaseLabel(phases, status).toUpperCase(), color: phaseBadgeClass(phases, status) }
   }
 
   const formatTimer = (seconds: number) => {
@@ -258,6 +254,10 @@ export function PublicDisplayPanel() {
     const secs = seconds % 60
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
+
+  const isCouncilorSpeechPhase = phaseSpeechType(phases, sessionData?.status) === 'CONSIDERACOES_FINAIS'
+  const councilorSpeechName = speechPhaseName(phases, sessionData?.status, 'CONSIDERACOES_FINAIS')
+  const citizenSpeechName = speechPhaseName(phases, sessionData?.status, 'TRIBUNA_LIVE')
 
   if (!sessionData) {
     return (
@@ -336,7 +336,7 @@ export function PublicDisplayPanel() {
         {attendanceData && attendanceData.isAttendanceOpen && 
          !((sessionData.currentVoting && sessionData.currentVoting.isActive) || 
            readingDocument || 
-           (sessionData.status === 'CONSIDERACOES_FINAIS') || 
+           isCouncilorSpeechPhase || 
            consideracoesFinais.some(r => r.isSpeaking) || 
            tribunaLivre.some(r => r.isSpeaking)) && (
           <Card className="lg:col-span-2 bg-white/10 backdrop-blur-sm border-white/20">
@@ -778,7 +778,7 @@ export function PublicDisplayPanel() {
         {/* Inscrições para Fala - Considerações Finais */}
         {/* Oculta esta seção se houver pronunciamento ativo na Tribuna Livre */}
         {/* Mostra lista de inscritos se estiver na fase de considerações finais ou se houver alguém falando */}
-        {((sessionData.status === 'CONSIDERACOES_FINAIS') || consideracoesFinais.some(r => r.isSpeaking)) && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && !tribunaLivre.some(r => r.isSpeaking) && (
+        {(isCouncilorSpeechPhase || consideracoesFinais.some(r => r.isSpeaking)) && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && !tribunaLivre.some(r => r.isSpeaking) && (
           <Card className="lg:col-span-2 bg-white/10 backdrop-blur-sm border-white/20">
             <CardContent className="p-6 h-full">
               <div className="relative mb-8">
@@ -791,7 +791,7 @@ export function PublicDisplayPanel() {
                     </div>
                     <div>
                       <h3 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-purple-200 mb-1 tracking-wide">
-                        CONSIDERAÇÕES FINAIS
+                        {councilorSpeechName.toUpperCase()}
                       </h3>
                       <p className="text-lg text-purple-100/90 font-medium">
                         {isSpeechRequestsOpen ? 'Inscrições abertas' : 'Lista de inscritos'}
@@ -991,7 +991,7 @@ export function PublicDisplayPanel() {
                     </div>
                     <div>
                       <h3 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-yellow-200 mb-1 tracking-wide">
-                        TRIBUNA LIVRE
+                        {citizenSpeechName.toUpperCase()}
                       </h3>
                       <p className="text-lg text-yellow-100/90 font-medium">
                         {isSpeechRequestsOpen ? 'Manifestações abertas' : 'Lista de manifestações'}
@@ -1209,7 +1209,7 @@ export function PublicDisplayPanel() {
         )}
 
         {/* Vereador Falando nas Considerações Finais */}
-        {currentSpeaker && sessionData.status === 'CONSIDERACOES_FINAIS' && !attendanceData?.isAttendanceOpen && SHOW_CONSIDERACOES_FINAIS_SPEAKER_CARD && (
+        {currentSpeaker && isCouncilorSpeechPhase && !attendanceData?.isAttendanceOpen && SHOW_CONSIDERACOES_FINAIS_SPEAKER_CARD && (
           <Card className="lg:col-span-2 bg-white/10 backdrop-blur-sm border-white/20">
             <CardContent className="p-6 h-full">
               <div className="flex items-center mb-6">
@@ -1219,7 +1219,7 @@ export function PublicDisplayPanel() {
                     {currentSpeaker.user.fullName}
                   </h3>
                   <p className="text-lg opacity-80">
-                    Considerações Finais - {currentSpeaker.subject}
+                    {councilorSpeechName} - {currentSpeaker.subject}
                   </p>
                 </div>
                 <div className="ml-auto">
@@ -1336,14 +1336,14 @@ export function PublicDisplayPanel() {
         )}
 
         {/* Painel vazio quando não há conteúdo */}
-        {!readingDocument && !currentSpeaker && !attendanceData?.isAttendanceOpen && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && sessionData.status !== 'CONSIDERACOES_FINAIS' && !consideracoesFinais.some(r => r.isSpeaking) && (
+        {!readingDocument && !currentSpeaker && !attendanceData?.isAttendanceOpen && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && !isCouncilorSpeechPhase && !consideracoesFinais.some(r => r.isSpeaking) && (
           <Card className="lg:col-span-2 bg-white/10 backdrop-blur-sm border-white/20">
             <CardContent className="p-6 h-full flex items-center justify-center">
               <div className="text-center text-white/60">
                 <FileText className="h-16 w-16 mx-auto mb-4 opacity-50" />
                 <p className="text-xl">
-                  {sessionData.status === 'CONSIDERACOES_FINAIS' ? 
-                    'Aguardando vereador para considerações finais' :
+                  {isCouncilorSpeechPhase ? 
+                    `Aguardando vereador - ${councilorSpeechName}` :
                     'Nenhum documento sendo exibido no momento'
                   }
                 </p>
@@ -1472,7 +1472,7 @@ export function PublicDisplayPanel() {
           {attendanceData && attendanceData.isAttendanceOpen && 
            ((sessionData.currentVoting && sessionData.currentVoting.isActive) || 
              readingDocument || 
-             (sessionData.status === 'CONSIDERACOES_FINAIS') || 
+             isCouncilorSpeechPhase || 
              consideracoesFinais.some(r => r.isSpeaking) || 
              tribunaLivre.some(r => r.isSpeaking)) && (
             <Card className="bg-white/10 backdrop-blur-sm border-white/20 mb-6">

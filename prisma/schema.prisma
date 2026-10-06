@@ -19,16 +19,6 @@ enum UserRole {
   COUNCILOR
 }
 
-enum SessionStatus {
-  SCHEDULED
-  PEQUENO_EXPEDIENTE
-  GRANDE_EXPEDIENTE
-  ORDEM_DO_DIA
-  CONSIDERACOES_FINAIS
-  TRIBUNA_LIVE
-  CLOSED
-}
-
 enum VoteType {
   YES
   NO
@@ -85,7 +75,7 @@ model VotingSession {
   id          String        @id @default(cuid())
   title       String
   description String?
-  status      SessionStatus @default(SCHEDULED)
+  status      String        @default("SCHEDULED") // SCHEDULED, CLOSED ou a key de uma PhaseDefinition
   currentPhase String       @default("SCHEDULED")
   scheduledAt DateTime
   startedAt   DateTime?
@@ -289,11 +279,29 @@ model LegislativeProcess {
   @@map("legislative_processes")
 }
 
+// Fases configuráveis da sessão (nome, ordem e o que é permitido em cada uma)
+model PhaseDefinition {
+  id              String      @id @default(cuid())
+  key             String      @unique // Valor gravado em VotingSession.status e Document.phase; não muda ao renomear
+  name            String
+  orderIndex      Int         @default(0)
+  color           String      @default("blue")
+  isActive        Boolean     @default(true) // false = excluída (mantida para histórico)
+  hasDocuments    Boolean     @default(false) // Cadastro e leitura de documentos na fase
+  hasVoting       Boolean     @default(false) // Votação habilitada na fase
+  isVotingAgenda  Boolean     @default(false) // Pauta de votação: lista os documentos enviados à Ordem do Dia
+  speechType      SpeechType? // Inscrições para fala: CONSIDERACOES_FINAIS = vereadores, TRIBUNA_LIVE = cidadãos
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@map("phase_definitions")
+}
+
 // Histórico das fases da sessão
 model SessionPhase {
   id        String        @id @default(cuid())
   sessionId String
-  phase     SessionStatus
+  phase     String
   startedAt DateTime      @default(now())
   endedAt   DateTime?
 

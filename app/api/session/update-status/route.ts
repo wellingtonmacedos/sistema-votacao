@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { isValidSessionStatus } from '@/lib/phases-server'
 
 export async function POST(request: Request) {
   try {
@@ -13,6 +14,10 @@ export async function POST(request: Request) {
     }
 
     const { status } = await request.json()
+
+    if (!(await isValidSessionStatus(status))) {
+      return NextResponse.json({ error: 'Fase inválida ou excluída' }, { status: 400 })
+    }
 
     // Buscar sessão ativa
     const currentSession = await prisma.votingSession.findFirst({

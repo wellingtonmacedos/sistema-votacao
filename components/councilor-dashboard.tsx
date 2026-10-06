@@ -20,6 +20,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "react-hot-toast"
+import { usePhases } from "@/hooks/use-phases"
+import { activePhases, phaseBadgeClass, phaseLabel, phaseAllowsVoting, phaseSpeechType, speechPhaseName } from "@/lib/phases"
 import { 
   UserCheck,
   Vote,
@@ -105,29 +107,10 @@ interface SessionDocument {
   createdAt: string
 }
 
-// Mapeamento de fases
-const phaseLabels: Record<string, string> = {
-  'SCHEDULED': 'Agendada',
-  'PEQUENO_EXPEDIENTE': 'Pequeno Expediente',
-  'GRANDE_EXPEDIENTE': 'Grande Expediente',
-  'ORDEM_DO_DIA': 'Ordem do Dia',
-  'CONSIDERACOES_FINAIS': 'Considerações Finais',
-  'TRIBUNA_LIVE': 'Tribuna Livre',
-  'CLOSED': 'Encerrada'
-}
-
-const phaseColors: Record<string, string> = {
-  'SCHEDULED': 'bg-gray-500',
-  'PEQUENO_EXPEDIENTE': 'bg-blue-500',
-  'GRANDE_EXPEDIENTE': 'bg-purple-500',
-  'ORDEM_DO_DIA': 'bg-orange-500',
-  'CONSIDERACOES_FINAIS': 'bg-green-500',
-  'TRIBUNA_LIVE': 'bg-amber-500',
-  'CLOSED': 'bg-gray-700'
-}
-
 export function CouncilorDashboard() {
   const { data: session } = useSession() || {}
+  const { phases } = usePhases()
+  const votingPhaseName = activePhases(phases).find((phase) => phase.isVotingAgenda || phase.hasVoting)?.name ?? 'fase de votação'
   const [status, setStatus] = useState<CouncilorStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [votingInProgress, setVotingInProgress] = useState(false)
@@ -240,7 +223,7 @@ export function CouncilorDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          subject: 'Considerações Finais',
+          subject: councilorSpeechName,
           type: 'CONSIDERACOES_FINAIS',
           sessionId: sessionData?.id
         })
@@ -309,6 +292,7 @@ export function CouncilorDashboard() {
   }
 
   const { session: sessionData, presence, currentVoting, myVote, speechRequests, queuePosition } = status
+  const councilorSpeechName = speechPhaseName(phases, sessionData?.status, 'CONSIDERACOES_FINAIS')
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -346,9 +330,9 @@ export function CouncilorDashboard() {
                 </CardDescription>
               </div>
               <Badge 
-                className={`${phaseColors[sessionData?.status || '']} text-white text-sm px-3 py-1`}
+                className={`${phaseBadgeClass(phases, sessionData?.status)} text-white text-sm px-3 py-1`}
               >
-                {phaseLabels[sessionData?.status || ''] || sessionData?.status}
+                {phaseLabel(phases, sessionData?.status)}
               </Badge>
             </div>
           </CardHeader>
@@ -521,11 +505,11 @@ export function CouncilorDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {sessionData?.status !== 'ORDEM_DO_DIA' && !currentVoting ? (
+            {!phaseAllowsVoting(phases, sessionData?.status) && !currentVoting ? (
               <div className="text-center py-8 text-gray-500">
                 <Vote className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p className="font-medium">Aguardando Ordem do Dia</p>
-                <p className="text-sm">A votação será habilitada durante a fase &quot;Ordem do Dia&quot;.</p>
+                <p className="font-medium">Aguardando {votingPhaseName}</p>
+                <p className="text-sm">A votação será habilitada durante a fase &quot;{votingPhaseName}&quot;.</p>
               </div>
             ) : !currentVoting?.isActive ? (
               <div className="text-center py-8 text-gray-500">
@@ -635,7 +619,7 @@ export function CouncilorDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <MessageSquare className={`h-5 w-5 ${sessionData?.isSpeechRequestsOpen ? 'text-green-600' : 'text-gray-600'}`} />
-              Considerações Finais
+              {councilorSpeechName}
               {sessionData?.isSpeechRequestsOpen && (
                 <Badge className="bg-green-600 text-white">
                   INSCRIÇÕES ABERTAS
@@ -644,10 +628,10 @@ export function CouncilorDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {sessionData?.status !== 'CONSIDERACOES_FINAIS' && !sessionData?.isSpeechRequestsOpen ? (
+            {phaseSpeechType(phases, sessionData?.status) !== 'CONSIDERACOES_FINAIS' && !sessionData?.isSpeechRequestsOpen ? (
               <div className="text-center py-6 text-gray-500">
                 <MessageSquare className="h-10 w-10 mx-auto mb-2 text-gray-300" />
-                <p className="font-medium">Aguardando Considerações Finais</p>
+                <p className="font-medium">Aguardando {councilorSpeechName}</p>
                 <p className="text-sm">As inscrições serão abertas durante esta fase.</p>
               </div>
             ) : !sessionData?.isSpeechRequestsOpen ? (
