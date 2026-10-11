@@ -8,3 +8,10 @@ out/
 coverage/
 *.log
 .vercel/
+*.db
+*.sqlite
+prisma/dev.db
+prisma/dev.db-journal
+tsconfig.tsbuildinfo
+public/uploads/
+*.tsbuildinfo

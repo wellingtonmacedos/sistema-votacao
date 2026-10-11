@@ -2,6 +2,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -19,20 +20,18 @@ import {
 
 export function PresidentDashboard() {
   const [activeTab, setActiveTab] = useState('overview')
+  const router = useRouter()
 
   const handleNewSession = () => {
-    // Funcionalidade para criar nova sessão
-    alert('Funcionalidade de Nova Sessão em desenvolvimento!')
+    router.push('/president/nova-sessao')
   }
 
   const handleManageMatters = () => {
-    // Funcionalidade para gerenciar pautas
-    alert('Funcionalidade de Gerenciar Pautas em desenvolvimento!')
+    router.push('/president/pautas')
   }
 
   const handleViewHistory = () => {
-    // Funcionalidade para ver histórico
-    alert('Funcionalidade de Histórico em desenvolvimento!')
+    router.push('/historico')
   }
 
   return (

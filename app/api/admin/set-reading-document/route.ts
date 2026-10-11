@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { parseBody, setReadingDocumentSchema, ValidationError } from '@/lib/validations'
 
 export async function POST(request: Request) {
   try {
@@ -12,38 +13,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
-    const { documentId, isReading } = await request.json()
+    const body = await request.json()
+    const { documentId, isReading } = parseBody(setReadingDocumentSchema, body)
 
-    console.log('📄 Set Reading Document:', { documentId, isReading })
-
-    // Primeiro, parar a leitura de todos os documentos
-    const updateResult = await prisma.document.updateMany({
+    await prisma.document.updateMany({
       data: {
         isBeingRead: false
       }
     })
-    console.log('📄 Reset all documents isBeingRead:', updateResult.count, 'documents updated')
 
-    // Se isReading for true, definir este documento como sendo lido
     if (isReading && documentId) {
-      const updatedDoc = await prisma.document.update({
+      await prisma.document.update({
         where: { id: documentId },
         data: {
           isBeingRead: true
         }
       })
-      console.log('📄 Document set to reading:', updatedDoc.title)
     }
 
-    // Verificar estado final
     const currentlyReading = await prisma.document.findFirst({
       where: { isBeingRead: true },
       select: { id: true, title: true }
     })
-    console.log('📄 Currently reading document:', currentlyReading ? currentlyReading.title : 'NENHUM')
 
     return NextResponse.json({ success: true, currentlyReading })
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     console.error('Erro ao definir documento em leitura:', error)
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
   }

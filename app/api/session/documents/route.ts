@@ -60,7 +60,7 @@ export async function GET(request: Request) {
       }
     })
 
-    const formattedDocuments = documents.map((doc: any) => ({
+    const formattedDocuments = documents.map((doc) => ({
       id: doc.id,
       title: doc.title,
       type: doc.type,

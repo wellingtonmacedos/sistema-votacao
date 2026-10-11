@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { generatePresignedUploadUrl, getFileUrl } from "@/lib/s3";
+import { parseBody, uploadPresignedSchema, ValidationError } from "@/lib/validations";
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,16 +15,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
 
-    const { fileName, contentType, category = 'image' } = await request.json();
+    const body = await request.json();
+    const { fileName, contentType, category } = parseBody(uploadPresignedSchema, body);
+    const fileCategory = category || 'image';
 
-    if (!fileName || !contentType) {
-      return NextResponse.json(
-        { error: "Nome do arquivo e tipo são obrigatórios" },
-        { status: 400 }
-      );
-    }
-
-    if (category === 'document') {
+    if (fileCategory === 'document') {
       const isPdf = contentType === 'application/pdf' && fileName.toLowerCase().endsWith('.pdf');
 
       if (!isPdf) {
@@ -58,6 +54,9 @@ export async function POST(request: NextRequest) {
       publicUrl
     });
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error('Erro ao gerar URL de upload:', error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }

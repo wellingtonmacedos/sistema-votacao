@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { Prisma, SpeechType } from "@prisma/client";
+import { parseBody, createSpeechRequestSchema, ValidationError } from "@/lib/validations";
 
 
 // Listar solicitações de fala
@@ -20,9 +22,9 @@ export async function GET(request: NextRequest) {
     let speechRequests;
     
     if (sessionId) {
-      const where: any = { sessionId };
+      const where: Prisma.SpeechRequestWhereInput = { sessionId };
       if (type) {
-        where.type = type;
+        where.type = type as SpeechType;
       }
       
       speechRequests = await prisma.speechRequest.findMany({
@@ -49,9 +51,9 @@ export async function GET(request: NextRequest) {
         return NextResponse.json([]);
       }
 
-      const where: any = { sessionId: currentSession.id };
+      const where: Prisma.SpeechRequestWhereInput = { sessionId: currentSession.id };
       if (type) {
-        where.type = type;
+        where.type = type as SpeechType;
       }
 
       speechRequests = await prisma.speechRequest.findMany({
@@ -82,7 +84,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { subject, type, userId, citizenName, citizenProfession, sessionId } = body;
+    const data = parseBody(createSpeechRequestSchema, body);
+    const { subject, type, userId, citizenName, citizenProfession, sessionId } = data;
 
     let currentSession;
 
@@ -169,6 +172,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(speechRequest);
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error('Erro ao criar solicitação de fala:', error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }

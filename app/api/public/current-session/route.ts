@@ -66,12 +66,9 @@ export async function GET() {
     })
     
     if (votingMatter) {
-      console.log('DEBUG: Found voting matter', votingMatter.id)
-      console.log('DEBUG: Votes raw:', JSON.stringify(votingMatter.votes))
-      const yesVotes = votingMatter.votes.filter((v: any) => v.voteType === 'YES').length
-      const noVotes = votingMatter.votes.filter((v: any) => v.voteType === 'NO').length
-      const abstentionVotes = votingMatter.votes.filter((v: any) => v.voteType === 'ABSTENTION').length
-      console.log('DEBUG: Counts:', { yesVotes, noVotes, abstentionVotes })
+      const yesVotes = votingMatter.votes.filter((v) => v.voteType === 'YES').length
+      const noVotes = votingMatter.votes.filter((v) => v.voteType === 'NO').length
+      const abstentionVotes = votingMatter.votes.filter((v) => v.voteType === 'ABSTENTION').length
       
       // Contar total de vereadores presentes
       const totalVoters = await prisma.attendance.count({
@@ -112,11 +109,9 @@ export async function GET() {
       })
 
       if (votingDocument) {
-        console.log('DEBUG: Found voting document', votingDocument.id)
-        console.log('DEBUG: Doc Votes raw:', JSON.stringify(votingDocument.votes))
-        const yesVotes = votingDocument.votes.filter((v: any) => v.voteType === 'YES').length
-        const noVotes = votingDocument.votes.filter((v: any) => v.voteType === 'NO').length
-        const abstentionVotes = votingDocument.votes.filter((v: any) => v.voteType === 'ABSTENTION').length
+        const yesVotes = votingDocument.votes.filter((v) => v.voteType === 'YES').length
+        const noVotes = votingDocument.votes.filter((v) => v.voteType === 'NO').length
+        const abstentionVotes = votingDocument.votes.filter((v) => v.voteType === 'ABSTENTION').length
         
         // Contar total de vereadores presentes
         const totalVoters = await prisma.attendance.count({
@@ -167,6 +162,7 @@ export async function GET() {
       sessionNumber: currentSession.sessionNumber,
       date: currentSession.date,
       status: currentSession.status,
+      currentPhase: currentSession.currentPhase,
       currentDocument,
       currentVoting,
       timer

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { parseBody, voteSchema, ValidationError } from '@/lib/validations'
 
 const VALID_VOTE_TYPES = ['YES', 'NO', 'ABSTENTION'] as const
 
@@ -19,11 +20,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Apenas vereadores podem votar' }, { status: 403 })
     }
 
-    const { type, itemId, voteType } = await request.json()
-
-    if (!type || !itemId || !voteType) {
-      return NextResponse.json({ error: 'Parâmetros obrigatórios: type, itemId e voteType' }, { status: 400 })
-    }
+    const body = await request.json()
+    const { type, itemId, voteType } = parseBody(voteSchema, body)
 
     if (!VALID_VOTE_TYPES.includes(voteType)) {
       return NextResponse.json({ error: 'Tipo de voto inválido' }, { status: 400 })
@@ -168,6 +166,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Tipo de votação inválido' }, { status: 400 })
 
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     console.error('Erro ao registrar voto:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },

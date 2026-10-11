@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
 // Armazenamento temporário dos resultados (em produção, use Redis ou similar)
-let tempResult: any = null
+let tempResult: unknown = null
 let resultTimeout: NodeJS.Timeout | null = null
 
 export async function POST(request: NextRequest) {

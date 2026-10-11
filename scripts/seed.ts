@@ -5,6 +5,12 @@ import bcrypt from 'bcryptjs'
 const prisma = new PrismaClient()
 
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ O seed não pode ser executado em ambiente de produção.')
+    console.error('   Esta operação apaga todos os dados do banco de dados.')
+    process.exit(1)
+  }
+
   console.log('🌱 Iniciando seed do banco de dados...')
 
   // Limpar dados existentes (cuidado em produção!)

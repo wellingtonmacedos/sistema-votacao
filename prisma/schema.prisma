@@ -2,14 +2,12 @@
 // Schema Prisma com todas as entidades necessárias
 
 generator client {
-    provider = "prisma-client-js"
-    
-    
+  provider = "prisma-client-js"
 }
 
 datasource db {
-    provider = "sqlite"
-    url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // Enums para os tipos de dados
@@ -289,11 +287,26 @@ model LegislativeProcess {
   @@map("legislative_processes")
 }
 
+// Modelo de fases customizáveis (templates de fases para as sessões)
+model Phase {
+  id          String    @id @default(cuid())
+  name        String
+  orderIndex  Int       @default(0)
+  color       String    @default("#6366f1")
+  isActive    Boolean   @default(true)
+  isDefault   Boolean   @default(false)
+  hasVoting   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("phases")
+}
+
 // Histórico das fases da sessão
 model SessionPhase {
   id        String        @id @default(cuid())
   sessionId String
-  phase     SessionStatus
+  phase     String
   startedAt DateTime      @default(now())
   endedAt   DateTime?
 

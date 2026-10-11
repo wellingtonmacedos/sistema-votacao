@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { parseBody, attendanceRegisterSchema, ValidationError } from "@/lib/validations";
 
 // Registrar presença do vereador
 export async function POST(request: NextRequest) {
@@ -14,7 +15,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
 
-    const { sessionId } = await request.json();
+    const body = await request.json();
+    const { sessionId } = parseBody(attendanceRegisterSchema, body);
 
     // Verificar se a sessão existe e se a chamada está aberta
     const votingSession = await prisma.votingSession.findUnique({
@@ -56,6 +58,9 @@ export async function POST(request: NextRequest) {
       message: "Presença registrada com sucesso"
     });
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error('Erro ao registrar presença:', error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }

@@ -110,10 +110,3 @@ export async function GET() {
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
   }
 }
-
-// Função mock para gerar partidos dos vereadores
-function getPartyMock(fullName: string) {
-  const parties = ['PSD', 'MDB', 'PP', 'PSDB', 'PT', 'PDT', 'REPUBLICANOS', 'PSL', 'CIDADANIA', 'PSB', 'PODE', 'PL', 'SOLIDARIEDADE'];
-  const hash = fullName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return parties[hash % parties.length];
-}

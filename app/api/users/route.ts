@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { Prisma, UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { parseBody, createUserSchema, updateUserSchema, ValidationError } from "@/lib/validations";
 
 
 export async function GET(request: NextRequest) {
@@ -21,9 +23,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const role = searchParams.get('role');
 
-    let where: any = {};
+    let where: Prisma.UserWhereInput = {};
     if (role) {
-      where.role = role;
+      where.role = role as UserRole;
     }
 
     const users = await prisma.user.findMany({
@@ -62,14 +64,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { email, fullName, password, role, party, photoUrl, partyLogoUrl } = body;
-
-    if (!email || !fullName || !password) {
-      return NextResponse.json(
-        { error: "Email, nome completo e senha são obrigatórios" },
-        { status: 400 }
-      );
-    }
+    const data = parseBody(createUserSchema, body);
+    const { email, fullName, password, role, party, photoUrl, partyLogoUrl } = data;
 
     // Verificar se o email já existe
     const existingUser = await prisma.user.findUnique({
@@ -112,6 +108,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(user);
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error('Erro ao criar usuário:', error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
@@ -130,11 +129,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, email, fullName, password, role, isActive, party, photoUrl, partyLogoUrl } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: "ID é obrigatório" }, { status: 400 });
-    }
+    const data = parseBody(updateUserSchema, body);
+    const { id, email, fullName, password, role, isActive, party, photoUrl, partyLogoUrl } = data;
 
     // Verificar se o email já existe (para outro usuário)
     if (email) {
@@ -150,7 +146,7 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.UserUpdateInput = {};
     if (email) updateData.email = email;
     if (fullName) updateData.fullName = fullName;
     if (role) updateData.role = role;
@@ -181,6 +177,9 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json(user);
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error('Erro ao atualizar usuário:', error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
@@ -205,15 +204,32 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "ID é obrigatório" }, { status: 400 });
     }
 
-    // Não excluir, apenas desativar
-    await prisma.user.update({
-      where: { id },
-      data: { isActive: false }
-    });
+    const userToDelete = await prisma.user.findUnique({ where: { id } });
+    if (!userToDelete) {
+      return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
+    }
 
-    return NextResponse.json({ success: true, message: "Usuário desativado com sucesso" });
+    // Não permitir excluir a si mesmo
+    if (userToDelete.id === session.user.id) {
+      return NextResponse.json({ error: "Você não pode excluir sua própria conta" }, { status: 400 });
+    }
+
+    // Não permitir excluir o último administrador
+    if (userToDelete.role === 'ADMIN') {
+      const adminCount = await prisma.user.count({
+        where: { role: 'ADMIN', isActive: true, id: { not: id } }
+      });
+      if (adminCount === 0) {
+        return NextResponse.json({ error: "Não é possível excluir o único administrador ativo" }, { status: 400 });
+      }
+    }
+
+    // Hard delete (cascade remove votos, presenças, solicitações, etc.)
+    await prisma.user.delete({ where: { id } });
+
+    return NextResponse.json({ success: true, message: "Usuário excluído permanentemente" });
   } catch (error) {
-    console.error('Erro ao desativar usuário:', error);
+    console.error('Erro ao excluir usuário:', error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }

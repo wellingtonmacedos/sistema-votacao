@@ -93,11 +93,11 @@ export async function GET(request: NextRequest) {
     let myVote = null
 
     if (votingDocument) {
-      const yesVotes = votingDocument.votes.filter((v: any) => v.voteType === 'YES').length
-      const noVotes = votingDocument.votes.filter((v: any) => v.voteType === 'NO').length
-      const abstentionVotes = votingDocument.votes.filter((v: any) => v.voteType === 'ABSTENTION').length
+      const yesVotes = votingDocument.votes.filter((v) => v.voteType === 'YES').length
+      const noVotes = votingDocument.votes.filter((v) => v.voteType === 'NO').length
+      const abstentionVotes = votingDocument.votes.filter((v) => v.voteType === 'ABSTENTION').length
       
-      const userVote = votingDocument.votes.find((v: any) => v.userId === session.user.id)
+      const userVote = votingDocument.votes.find((v) => v.userId === session.user.id)
       myVote = userVote ? userVote.voteType : null
 
       currentVoting = {
@@ -114,11 +114,11 @@ export async function GET(request: NextRequest) {
         isActive: true
       }
     } else if (votingMatter) {
-      const yesVotes = votingMatter.votes.filter((v: any) => v.voteType === 'YES').length
-      const noVotes = votingMatter.votes.filter((v: any) => v.voteType === 'NO').length
-      const abstentionVotes = votingMatter.votes.filter((v: any) => v.voteType === 'ABSTENTION').length
+      const yesVotes = votingMatter.votes.filter((v) => v.voteType === 'YES').length
+      const noVotes = votingMatter.votes.filter((v) => v.voteType === 'NO').length
+      const abstentionVotes = votingMatter.votes.filter((v) => v.voteType === 'ABSTENTION').length
       
-      const userVote = votingMatter.votes.find((v: any) => v.userId === session.user.id)
+      const userVote = votingMatter.votes.find((v) => v.userId === session.user.id)
       myVote = userVote ? userVote.voteType : null
 
       currentVoting = {
@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
 
     // Calcular posição do vereador na fila
     let queuePosition = null
-    const userRequestInQueue = allSpeechRequests.findIndex((req: any) => req.userId === session.user.id)
+    const userRequestInQueue = allSpeechRequests.findIndex((req) => req.userId === session.user.id)
     if (userRequestInQueue !== -1) {
       queuePosition = userRequestInQueue + 1
     }
@@ -206,7 +206,7 @@ export async function GET(request: NextRequest) {
       },
       currentVoting,
       myVote,
-      speechRequests: speechRequests.map((req: any) => ({
+      speechRequests: speechRequests.map((req) => ({
         id: req.id,
         subject: req.subject,
         type: req.type,

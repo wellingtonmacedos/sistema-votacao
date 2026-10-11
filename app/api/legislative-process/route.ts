@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 
 
 // Listar processos legislativos
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId');
     const speechRequestId = searchParams.get('speechRequestId');
 
-    let where: any = {};
+    let where: Prisma.LegislativeProcessWhereInput = {};
 
     // Se não for admin, mostrar apenas próprios processos
     if (session.user.role !== 'ADMIN') {

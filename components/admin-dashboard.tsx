@@ -3,6 +3,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "react-hot-toast"
 import { 
   Users, 
@@ -43,6 +45,8 @@ import {
   LayoutDashboard,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Briefcase,
   ScrollText,
   ListChecks,
@@ -52,7 +56,10 @@ import {
   Loader2,
   BarChart,
   Menu,
-  ExternalLink
+  ExternalLink,
+  History as HistoryIcon,
+  Layers,
+  Save
 } from "lucide-react"
 import Link from "next/link"
 
@@ -61,6 +68,7 @@ const menuItems = [
   { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard, color: 'text-blue-600' },
   { id: 'vereadores', label: 'Vereadores', icon: Users, color: 'text-indigo-600' },
   { id: 'sessoes', label: 'Sessões', icon: Calendar, color: 'text-purple-600' },
+  { id: 'fases', label: 'Fases', icon: Layers, color: 'text-fuchsia-600' },
   { id: 'painel', label: 'Painel Público', icon: Monitor, color: 'text-cyan-600' },
   { id: 'pequeno', label: 'Peq. Expediente', icon: FileText, color: 'text-green-600' },
   { id: 'grande', label: 'Gr. Expediente', icon: ScrollText, color: 'text-emerald-600' },
@@ -905,6 +913,335 @@ function TribunaLivreTab() {
   )
 }
 
+const PHASE_COLORS = [
+  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+  '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
+  '#14b8a6', '#a855f7', '#eab308', '#6b7280'
+]
+
+// Componente para gerenciar Fases da Sessão
+function FasesTab() {
+  const [phases, setPhases] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingPhase, setEditingPhase] = useState<any>(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    color: '#6366f1',
+    orderIndex: 0,
+    isActive: true,
+    hasVoting: false
+  })
+
+  useEffect(() => {
+    fetchPhases()
+  }, [])
+
+  const fetchPhases = async () => {
+    try {
+      const response = await fetch('/api/admin/phases')
+      if (response.ok) {
+        const data = await response.json()
+        setPhases(data)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar fases:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (!formData.name.trim()) {
+      toast.error('Nome da fase é obrigatório')
+      return
+    }
+
+    try {
+      const body = editingPhase
+        ? { id: editingPhase.id, ...formData }
+        : formData
+
+      const response = await fetch('/api/admin/phases', {
+        method: editingPhase ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+
+      if (response.ok) {
+        toast.success(editingPhase ? 'Fase atualizada!' : 'Fase criada!')
+        setIsDialogOpen(false)
+        setEditingPhase(null)
+        setFormData({ name: '', color: '#6366f1', orderIndex: phases.length, isActive: true, hasVoting: false })
+        fetchPhases()
+      } else {
+        const error = await response.json()
+        toast.error(error.error || 'Erro ao salvar fase')
+      }
+    } catch (error) {
+      toast.error('Erro ao salvar fase')
+    }
+  }
+
+  const handleEdit = (phase: any) => {
+    setEditingPhase(phase)
+    setFormData({
+      name: phase.name,
+      color: phase.color,
+      orderIndex: phase.orderIndex,
+      isActive: phase.isActive,
+      hasVoting: phase.hasVoting || false
+    })
+    setIsDialogOpen(true)
+  }
+
+  const handleDelete = async (phase: any) => {
+    if (phase.isDefault) {
+      toast.error('Fases padrão não podem ser excluídas')
+      return
+    }
+    if (!confirm(`Tem certeza que deseja excluir a fase "${phase.name}"?`)) return
+
+    try {
+      const response = await fetch(`/api/admin/phases?id=${phase.id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        toast.success('Fase excluída!')
+        fetchPhases()
+      } else {
+        const error = await response.json()
+        toast.error(error.error || 'Erro ao excluir fase')
+      }
+    } catch (error) {
+      toast.error('Erro ao excluir fase')
+    }
+  }
+
+  const handleReorder = async (phase: any, direction: 'up' | 'down') => {
+    const idx = phases.findIndex(p => p.id === phase.id)
+    if (direction === 'up' && idx === 0) return
+    if (direction === 'down' && idx === phases.length - 1) return
+
+    const swapWith = direction === 'up' ? phases[idx - 1] : phases[idx + 1]
+
+    try {
+      await Promise.all([
+        fetch('/api/admin/phases', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: phase.id, orderIndex: swapWith.orderIndex })
+        }),
+        fetch('/api/admin/phases', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: swapWith.id, orderIndex: phase.orderIndex })
+        })
+      ])
+      fetchPhases()
+    } catch (error) {
+      toast.error('Erro ao reordenar fases')
+    }
+  }
+
+  const handleToggleActive = async (phase: any) => {
+    try {
+      const response = await fetch('/api/admin/phases', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: phase.id, isActive: !phase.isActive })
+      })
+
+      if (response.ok) {
+        toast.success(phase.isActive ? 'Fase desativada!' : 'Fase ativada!')
+        fetchPhases()
+      }
+    } catch (error) {
+      toast.error('Erro ao alterar status')
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Layers className="h-5 w-5 text-fuchsia-600" />
+            Gerenciamento de Fases da Sessão
+          </CardTitle>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open)
+            if (!open) {
+              setEditingPhase(null)
+              setFormData({ name: '', color: '#6366f1', orderIndex: phases.length, isActive: true, hasVoting: false })
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button className="bg-fuchsia-600 hover:bg-fuchsia-700">
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Fase
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingPhase ? 'Editar Fase' : 'Criar Nova Fase'}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Nome da Fase *</label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Ex: Intervalo, Ordem Extraordinária..."
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Cor</label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {PHASE_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, color })}
+                        className={`w-8 h-8 rounded-full border-2 transition-all ${formData.color === color ? 'border-gray-800 scale-110' : 'border-transparent'}`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      type="color"
+                      value={formData.color}
+                      onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                      className="w-10 h-10 rounded cursor-pointer border"
+                    />
+                    <Input
+                      value={formData.color}
+                      onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                      placeholder="#6366f1"
+                      className="w-32"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="phaseActive"
+                    checked={formData.isActive}
+                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <label htmlFor="phaseActive" className="text-sm">Fase ativa (aparece no controle de fases)</label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="phaseVoting"
+                    checked={formData.hasVoting}
+                    onChange={(e) => setFormData({ ...formData, hasVoting: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <label htmlFor="phaseVoting" className="text-sm">Permite votação nesta fase (habilita deliberação de matérias)</label>
+                </div>
+                <div className="flex gap-2 justify-end pt-2">
+                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+                  <Button onClick={handleSubmit} className="bg-fuchsia-600 hover:bg-fuchsia-700">
+                    <Save className="h-4 w-4 mr-2" />
+                    {editingPhase ? 'Salvar' : 'Criar'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="text-center py-8">Carregando...</div>
+        ) : (
+          <div className="space-y-2">
+            {phases.map((phase, idx) => (
+              <div
+                key={phase.id}
+                className={`flex items-center justify-between p-4 rounded-lg border ${phase.isActive ? 'bg-white' : 'bg-gray-50 opacity-60'}`}
+              >
+                <div className="flex items-center gap-4">
+                  <div
+                    className="w-4 h-4 rounded-full"
+                    style={{ backgroundColor: phase.color }}
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-semibold">{phase.name}</h4>
+                      {phase.isDefault && (
+                        <Badge className="bg-gray-200 text-gray-700 text-xs">Padrão</Badge>
+                      )}
+                      {!phase.isActive && (
+                        <Badge variant="outline" className="text-gray-500">Inativa</Badge>
+                      )}
+                      {phase.hasVoting && (
+                        <Badge className="bg-green-100 text-green-700 text-xs flex items-center gap-1">
+                          <Vote className="h-3 w-3" />
+                          Votação
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500">Ordem: {phase.orderIndex}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleReorder(phase, 'up')}
+                    disabled={idx === 0}
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleReorder(phase, 'down')}
+                    disabled={idx === phases.length - 1}
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleEdit(phase)}>
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleToggleActive(phase)}
+                    className={phase.isActive ? 'text-orange-500' : 'text-green-600'}
+                  >
+                    {phase.isActive ? 'Desativar' : 'Ativar'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDelete(phase)}
+                    disabled={phase.isDefault}
+                    className={phase.isDefault ? 'text-gray-300 cursor-not-allowed' : 'text-red-600 hover:bg-red-50'}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {phases.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                Nenhuma fase cadastrada
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 // Componente para gerenciar Vereadores
 function VereadoresTab() {
   const [users, setUsers] = useState<any[]>([])
@@ -1053,6 +1390,26 @@ function VereadoresTab() {
       }
     } catch (error) {
       toast.error('Erro ao alterar status')
+    }
+  }
+
+  const handleDeleteUser = async (user: any) => {
+    if (!confirm(`Tem certeza que deseja excluir permanentemente "${user.fullName}"? Esta ação não pode ser desfeita.`)) return
+
+    try {
+      const response = await fetch(`/api/users?id=${user.id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        toast.success('Usuário excluído permanentemente!')
+        fetchUsers()
+      } else {
+        const error = await response.json()
+        toast.error(error.error || 'Erro ao excluir usuário')
+      }
+    } catch (error) {
+      toast.error('Erro ao excluir usuário')
     }
   }
 
@@ -1295,10 +1652,19 @@ function VereadoresTab() {
                     <Button 
                       variant="outline" 
                       size="sm"
-                      className="text-red-500 hover:text-red-700"
+                      className="text-orange-500 hover:text-orange-700"
                       onClick={() => handleToggleActive(user)}
                     >
                       Desativar
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="text-red-600 hover:text-red-800 border-red-200 hover:bg-red-50"
+                      onClick={() => handleDeleteUser(user)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Excluir
                     </Button>
                   </div>
                 </div>
@@ -1568,6 +1934,7 @@ function SessoesTab() {
 
 export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview')
+  const router = useRouter()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [currentSession, setCurrentSession] = useState<any>(null)
@@ -1616,13 +1983,92 @@ export function AdminDashboard() {
     date: new Date().toISOString().split('T')[0]
   })
 
+  const [phaseHistory, setPhaseHistory] = useState<{
+    phases: any[];
+    summary: { totalPhases: number; totalDurationMs: number; totalDurationHuman: string } | null;
+  } | null>(null)
+  const [phaseHistoryLoading, setPhaseHistoryLoading] = useState(false)
+  const [phaseHistorySessionId, setPhaseHistorySessionId] = useState<string | null>(null)
+
+  // Estado para fases customizadas (Controle das Fases dinâmico)
+  const [phases, setPhases] = useState<any[]>([])
+
+  const fetchPhases = async () => {
+    try {
+      const response = await fetch('/api/admin/phases')
+      if (response.ok) {
+        const data = await response.json()
+        setPhases(data.filter((p: any) => p.isActive))
+      }
+    } catch (error) {
+      console.error('Erro ao carregar fases:', error)
+    }
+  }
+
+  const phaseColorClass = (phase: string) => {
+    switch (phase) {
+      case 'SCHEDULED': return 'bg-blue-500'
+      case 'PEQUENO_EXPEDIENTE': return 'bg-yellow-500'
+      case 'GRANDE_EXPEDIENTE': return 'bg-orange-500'
+      case 'ORDEM_DO_DIA': return 'bg-purple-500'
+      case 'CONSIDERACOES_FINAIS': return 'bg-indigo-500'
+      case 'TRIBUNA_LIVE': return 'bg-pink-500'
+      case 'CLOSED': return 'bg-gray-500'
+      default: return 'bg-slate-500'
+    }
+  }
+
+  const phaseLabel = (phase: string) => {
+    switch (phase) {
+      case 'SCHEDULED': return 'Agendada'
+      case 'PEQUENO_EXPEDIENTE': return 'Pequeno Expediente'
+      case 'GRANDE_EXPEDIENTE': return 'Grande Expediente'
+      case 'ORDEM_DO_DIA': return 'Ordem do Dia'
+      case 'CONSIDERACOES_FINAIS': return 'Considerações Finais'
+      case 'TRIBUNA_LIVE': return 'Tribuna Livre'
+      case 'CLOSED': return 'Encerrada'
+      default: return phase
+    }
+  }
+
+  const fetchPhaseHistory = async (sessionId: string) => {
+    setPhaseHistoryLoading(true)
+    setPhaseHistorySessionId(sessionId)
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/phases`)
+      if (res.ok) {
+        const data = await res.json()
+        setPhaseHistory({ phases: data.phases, summary: data.summary || null })
+      }
+    } catch (error) {
+      console.error('Erro ao buscar histórico de fases:', error)
+    } finally {
+      setPhaseHistoryLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const sid = currentSession?.id
+    if (!sid) {
+      setPhaseHistory(null)
+      setPhaseHistorySessionId(null)
+      return
+    }
+    fetchPhaseHistory(sid)
+    const interval = setInterval(() => fetchPhaseHistory(sid), 5000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSession?.id])
+
   // Buscar dados reais da sessão
   useEffect(() => {
     fetchSessionData()
+    fetchPhases()
     
     // Polling mais eficiente para o admin
     const interval = setInterval(fetchSessionData, 2000) // 2 segundos
-    return () => clearInterval(interval)
+    const phasesInterval = setInterval(fetchPhases, 10000) // 10 segundos para fases
+    return () => { clearInterval(interval); clearInterval(phasesInterval) }
   }, [])
 
   const fetchSessionData = async () => {
@@ -1633,7 +2079,7 @@ export function AdminDashboard() {
         const data = await response.json()
         if (data) {
           setCurrentSession(data)
-          setSessionPhase(data.status)
+          setSessionPhase(data.currentPhase || data.status)
           setTimerActive(!!data.timer?.isActive)
           activeSessionId = data.id
         }
@@ -1847,16 +2293,27 @@ export function AdminDashboard() {
       'ORDEM_DO_DIA': 'Ordem do Dia',
       'CONSIDERACOES_FINAIS': 'Considerações Finais',
       'TRIBUNA_LIVE': 'Tribuna Livre',
-      'CLOSED': 'Encerrada'
+      'CLOSED': 'Encerrada',
+      'Pequeno Expediente': 'Pequeno Expediente',
+      'Grande Expediente': 'Grande Expediente',
+      'Ordem do Dia': 'Ordem do Dia',
+      'Considerações Finais': 'Considerações Finais',
+      'Tribuna Livre': 'Tribuna Livre',
+      'Encerrada': 'Encerrada'
     }
 
-    // Mapeamento de fases para tabs do menu
+    // Mapeamento de fases para tabs do menu (chaves e nomes em PT)
     const phaseToTab: Record<string, string> = {
       'PEQUENO_EXPEDIENTE': 'pequeno',
       'GRANDE_EXPEDIENTE': 'grande',
       'ORDEM_DO_DIA': 'ordem',
       'CONSIDERACOES_FINAIS': 'consideracoes',
-      'TRIBUNA_LIVE': 'tribuna'
+      'TRIBUNA_LIVE': 'tribuna',
+      'Pequeno Expediente': 'pequeno',
+      'Grande Expediente': 'grande',
+      'Ordem do Dia': 'ordem',
+      'Considerações Finais': 'consideracoes',
+      'Tribuna Livre': 'tribuna'
     }
     
     toast.loading(`Iniciando ${phaseNames[phase] || phase}...`, { id: 'phase-change' })
@@ -1871,7 +2328,7 @@ export function AdminDashboard() {
       if (response.ok) {
         setSessionPhase(phase)
         await fetchSessionData()
-        toast.success(`✅ Fase "${phaseNames[phase]}" iniciada com sucesso!`, { 
+        toast.success(`✅ Fase "${phaseNames[phase] || phase}" iniciada com sucesso!`, { 
           id: 'phase-change',
           duration: 3000
         })
@@ -2140,7 +2597,6 @@ export function AdminDashboard() {
     }
 
     try {
-      console.log('🚀 Iniciando votação para matéria:', matterId)
       toast.loading('⚡ Iniciando votação e sincronizando painel...', { id: 'voting-start' })
       
       const requestBody = {
@@ -2148,7 +2604,6 @@ export function AdminDashboard() {
         type: 'matter',
         itemId: matterId
       }
-      console.log('📤 Dados da requisição:', requestBody)
       
       const response = await fetch('/api/admin/voting', {
         method: 'POST',
@@ -2156,12 +2611,8 @@ export function AdminDashboard() {
         body: JSON.stringify(requestBody)
       })
 
-      console.log('📥 Status da resposta:', response.status)
-      console.log('📥 Headers da resposta:', Object.fromEntries(response.headers.entries()))
-
       if (response.ok) {
         const result = await response.json()
-        console.log('✅ Resultado da API:', result)
         
         // Atualizar dados do admin imediatamente
         await fetchSessionData()
@@ -2256,12 +2707,12 @@ export function AdminDashboard() {
         toast.success('📊 Resultado enviado para o painel público por 10 segundos')
       }
     } catch (error) {
-      console.log('Erro ao mostrar resultado no painel público:', error)
+      console.error('Erro ao mostrar resultado no painel público:', error)
     }
   }
 
   const handleViewHistory = () => {
-    alert('Funcionalidade de Histórico em desenvolvimento!')
+    router.push('/historico')
   }
 
   const handleViewDocument = async (_docId: string, docTitle: string, docContent?: string, attachmentUrl?: string) => {
@@ -3065,86 +3516,152 @@ export function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div 
-                    onClick={() => startPhase('PEQUENO_EXPEDIENTE', true)}
-                    className={`h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
-                      sessionPhase === 'PEQUENO_EXPEDIENTE' 
-                        ? 'bg-blue-100 border-blue-500 text-blue-700' 
-                        : 'bg-white border-gray-200 hover:border-blue-400 hover:bg-blue-50'
-                    }`}
-                  >
-                    <Clock className={`h-6 w-6 ${sessionPhase === 'PEQUENO_EXPEDIENTE' ? 'text-blue-600' : 'text-gray-500'}`} />
-                    <span className="font-medium text-sm">Pequeno Expediente</span>
-                    {sessionPhase === 'PEQUENO_EXPEDIENTE' && (
-                      <Badge className="bg-blue-600 text-[10px]">ATIVO</Badge>
-                    )}
-                  </div>
-                  <div 
-                    onClick={() => startPhase('GRANDE_EXPEDIENTE', true)}
-                    className={`h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
-                      sessionPhase === 'GRANDE_EXPEDIENTE' 
-                        ? 'bg-purple-100 border-purple-500 text-purple-700' 
-                        : 'bg-white border-gray-200 hover:border-purple-400 hover:bg-purple-50'
-                    }`}
-                  >
-                    <FileText className={`h-6 w-6 ${sessionPhase === 'GRANDE_EXPEDIENTE' ? 'text-purple-600' : 'text-gray-500'}`} />
-                    <span className="font-medium text-sm">Grande Expediente</span>
-                    {sessionPhase === 'GRANDE_EXPEDIENTE' && (
-                      <Badge className="bg-purple-600 text-[10px]">ATIVO</Badge>
-                    )}
-                  </div>
-                  <div 
-                    onClick={() => startPhase('ORDEM_DO_DIA', true)}
-                    className={`h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
-                      sessionPhase === 'ORDEM_DO_DIA' 
-                        ? 'bg-red-100 border-red-500 text-red-700' 
-                        : 'bg-white border-gray-200 hover:border-red-400 hover:bg-red-50'
-                    }`}
-                  >
-                    <Vote className={`h-6 w-6 ${sessionPhase === 'ORDEM_DO_DIA' ? 'text-red-600' : 'text-gray-500'}`} />
-                    <span className="font-medium text-sm">Ordem do Dia</span>
-                    {sessionPhase === 'ORDEM_DO_DIA' && (
-                      <Badge className="bg-red-600 text-[10px]">ATIVO</Badge>
-                    )}
-                  </div>
-                  <div 
-                    onClick={() => startPhase('CONSIDERACOES_FINAIS', true)}
-                    className={`h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
-                      sessionPhase === 'CONSIDERACOES_FINAIS' 
-                        ? 'bg-green-100 border-green-500 text-green-700' 
-                        : 'bg-white border-gray-200 hover:border-green-400 hover:bg-green-50'
-                    }`}
-                  >
-                    <MessageSquare className={`h-6 w-6 ${sessionPhase === 'CONSIDERACOES_FINAIS' ? 'text-green-600' : 'text-gray-500'}`} />
-                    <span className="font-medium text-sm">Considerações Finais</span>
-                    {sessionPhase === 'CONSIDERACOES_FINAIS' && (
-                      <Badge className="bg-green-600 text-[10px]">ATIVO</Badge>
-                    )}
-                  </div>
-                  <div 
-                    onClick={() => startPhase('TRIBUNA_LIVE', true)}
-                    className={`h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
-                      sessionPhase === 'TRIBUNA_LIVE' 
-                        ? 'bg-yellow-100 border-yellow-500 text-yellow-700' 
-                        : 'bg-white border-gray-200 hover:border-yellow-400 hover:bg-yellow-50'
-                    }`}
-                  >
-                    <Mic className={`h-6 w-6 ${sessionPhase === 'TRIBUNA_LIVE' ? 'text-yellow-600' : 'text-gray-500'}`} />
-                    <span className="font-medium text-sm">Tribuna Livre</span>
-                    {sessionPhase === 'TRIBUNA_LIVE' && (
-                      <Badge className="bg-yellow-600 text-[10px]">ATIVO</Badge>
-                    )}
-                  </div>
-                  <div 
-                    onClick={() => startPhase('CLOSED')}
-                    className="h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 bg-white border-gray-200 hover:border-gray-500 hover:bg-gray-100"
-                  >
-                    <CheckCircle className="h-6 w-6 text-gray-500" />
-                    <span className="font-medium text-sm text-gray-700">Encerrar Sessão</span>
-                  </div>
+                  {phases.map((phase: any) => {
+                    const isClosed = phase.name === 'Encerrada' || phase.name === 'CLOSED'
+                    const isActivePhase = sessionPhase === phase.name || sessionPhase === phase.name?.toUpperCase().replace(/\s+/g, '_')
+                    const phaseKey = (phase.name || '').toUpperCase().replace(/\s+/g, '_').replace(/Ç/g, 'C').replace(/Ã/g, 'A').replace(/Õ/g, 'O').replace(/Á/g, 'A').replace(/É/g, 'E').replace(/Í/g, 'I').replace(/Ó/g, 'O').replace(/Ú/g, 'U')
+                    const isClosedKey = phaseKey === 'CLOSED' || phase.name === 'Encerrada'
+                    return (
+                      <div
+                        key={phase.id}
+                        onClick={() => startPhase(isClosedKey ? 'CLOSED' : phase.name, !isClosedKey)}
+                        className={`h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
+                          isActivePhase
+                            ? 'border-opacity-100'
+                            : 'bg-white border-gray-200 hover:bg-gray-50'
+                        }`}
+                        style={{
+                          backgroundColor: isActivePhase ? `${phase.color}20` : undefined,
+                          borderColor: isActivePhase ? phase.color : undefined
+                        }}
+                      >
+                        {isClosedKey ? (
+                          <CheckCircle className="h-6 w-6 text-gray-500" />
+                        ) : (
+                          <div
+                            className="w-6 h-6 rounded-full flex items-center justify-center"
+                            style={{ backgroundColor: phase.color }}
+                          >
+                            <Play className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                        <span className={`font-medium text-sm ${isActivePhase ? '' : 'text-gray-700'}`}>
+                          {phase.name}
+                        </span>
+                        {isActivePhase && !isClosedKey && (
+                          <Badge className="text-[10px]" style={{ backgroundColor: phase.color }}>ATIVO</Badge>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {phases.length === 0 && (
+                    <div className="col-span-full text-center py-8 text-gray-500">
+                      Nenhuma fase ativa. Cadastre fases na aba &quot;Fases&quot;.
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+
+            {/* Histórico de Fases */}
+            {currentSession && (
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <HistoryIcon className="h-4 w-4 text-blue-600" />
+                        Histórico de Fases da Sessão
+                      </CardTitle>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Registro de horários e duração de cada fase
+                        {currentSession?.title && (
+                          <span className="ml-1">· <strong>{currentSession.title}</strong> ({currentSession.sessionNumber || '-'})</span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {phaseHistory?.summary && (
+                        <Badge variant="outline" className="h-7">
+                          <Clock className="h-3.5 w-3.5 mr-1.5 opacity-70" />
+                          Total: {phaseHistory.summary.totalDurationHuman}
+                          <span className="text-xs text-muted-foreground ml-2">
+                            ({phaseHistory.summary.totalPhases} fase
+                            {phaseHistory.summary.totalPhases === 1 ? '' : 's'})
+                          </span>
+                        </Badge>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={phaseHistoryLoading || !currentSession?.id}
+                        onClick={() => currentSession?.id && fetchPhaseHistory(currentSession.id)}
+                      >
+                        {phaseHistoryLoading ? (
+                          <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                        ) : (
+                          <Eye className="h-4 w-4 mr-1.5" />
+                        )}
+                        Atualizar
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {phaseHistoryLoading && !phaseHistory?.phases?.length && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Carregando histórico...
+                    </div>
+                  )}
+                  {!phaseHistoryLoading && phaseHistory?.phases && phaseHistory.phases.length === 0 && (
+                    <div className="text-sm text-muted-foreground py-6 text-center border border-dashed rounded-md">
+                      Nenhum registro de fase para esta sessão ainda.
+                    </div>
+                  )}
+                  {phaseHistory?.phases && phaseHistory.phases.length > 0 && (
+                    <div className="rounded-md border overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-12 text-xs">#</TableHead>
+                            <TableHead className="text-xs">Fase</TableHead>
+                            <TableHead className="text-right text-xs">Início</TableHead>
+                            <TableHead className="text-right text-xs">Fim</TableHead>
+                            <TableHead className="text-right text-xs w-36">Duração</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {phaseHistory.phases.map((p, idx) => (
+                            <TableRow key={p.id}>
+                              <TableCell className="text-xs text-muted-foreground">{idx + 1}</TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className={`inline-block h-2.5 w-2.5 rounded-full ${phaseColorClass(p.phase)}`} />
+                                  <span className="font-medium text-sm">{p.label || phaseLabel(p.phase)}</span>
+                                  {p.isOpen && <Badge className="text-[10px] h-4 px-1.5 bg-green-600 hover:bg-green-700">EM ANDAMENTO</Badge>}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right text-xs tabular-nums whitespace-nowrap">
+                                {new Date(p.startedAt).toLocaleString('pt-BR')}
+                              </TableCell>
+                              <TableCell className="text-right text-xs tabular-nums whitespace-nowrap">
+                                {p.endedAt ? new Date(p.endedAt).toLocaleString('pt-BR') : <span className="text-muted-foreground">—</span>}
+                              </TableCell>
+                              <TableCell className="text-right text-xs tabular-nums font-medium">
+                                <span className="inline-flex items-center gap-1">
+                                  <Clock className="h-3 w-3 opacity-60" />
+                                  {p.durationHuman}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Stats Overview */}
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -3651,6 +4168,11 @@ export function AdminDashboard() {
           {/* GESTÃO DE SESSÕES */}
           {activeTab === 'sessoes' && <div className="space-y-6">
             <SessoesTab />
+          </div>}
+
+          {/* GESTÃO DE FASES */}
+          {activeTab === 'fases' && <div className="space-y-6">
+            <FasesTab />
           </div>}
           </main>
         </div>

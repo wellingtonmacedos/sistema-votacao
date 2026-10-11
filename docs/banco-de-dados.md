@@ -1,15 +1,29 @@
 # Banco de dados e migrations
 
 O schema do banco fica em `prisma/schema.prisma` e o histórico de alterações em `prisma/migrations/`.
-A URL do banco vem da variável `DATABASE_URL` (veja `.env.example`). Em desenvolvimento o padrão é o SQLite `prisma/dev.db`.
+O projeto utiliza **PostgreSQL** em todos os ambientes. A URL de conexão vem da variável `DATABASE_URL` (veja `.env.example`).
 
 ## Primeira configuração
 
-1. Copie o arquivo de exemplo e preencha `NEXTAUTH_SECRET`:
+1. Instale e inicie o PostgreSQL (localmente ou via Docker):
+   ```bash
+   docker run --name postgres-sv -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16
+   ```
+2. Crie o banco de dados:
+   ```bash
+   createdb -U postgres sistema_votacao
+   ```
+3. Copie o arquivo de exemplo e preencha `DATABASE_URL`, `NEXTAUTH_SECRET`:
    ```
    cp .env.example .env        # Windows: copy .env.example .env
    ```
-2. Faça backup do banco antes de qualquer passo abaixo (copie `prisma/dev.db`).
+
+### Banco novo (vazio)
+
+```
+pnpm exec prisma migrate deploy
+pnpm exec prisma db seed     # opcional: dados de exemplo
+```
 
 ### Banco que já existia antes das migrations
 
@@ -19,13 +33,6 @@ Rode **uma única vez** em cada banco existente para marcar a migration inicial 
 pnpm exec prisma migrate resolve --applied 0_init
 ```
 Confira com `pnpm exec prisma migrate status` — deve mostrar "Database schema is up to date!".
-
-### Banco novo (vazio)
-
-```
-pnpm exec prisma migrate deploy
-pnpm exec prisma db seed     # opcional: dados de exemplo
-```
 
 ## Alterando o schema
 

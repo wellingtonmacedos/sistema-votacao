@@ -8,8 +8,23 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sistema_votacao
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
-      DATABASE_URL: "file:./dev.db"
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/sistema_votacao?schema=public"
+      SHADOW_DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/sistema_votacao_shadow?schema=public"
       NEXTAUTH_SECRET: ci-placeholder-secret
       NEXTAUTH_URL: http://localhost:3000
     steps:
@@ -30,12 +45,15 @@ jobs:
       - name: Prisma generate
         run: pnpm exec prisma generate
 
+      - name: Create shadow database
+        run: PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE sistema_votacao_shadow;"
+
       - name: Migrations em sincronia com o schema
         run: >
           pnpm exec prisma migrate diff
           --from-migrations prisma/migrations
           --to-schema-datamodel prisma/schema.prisma
-          --shadow-database-url "file:/tmp/shadow.db"
+          --shadow-database-url "$SHADOW_DATABASE_URL"
           --exit-code
 
       - name: Lint

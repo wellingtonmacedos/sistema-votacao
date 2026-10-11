@@ -116,9 +116,9 @@ export async function POST(request: NextRequest) {
         }
 
         // Calcular resultado
-        const yesVotes = matter.votes.filter((v: any) => v.voteType === 'YES').length
-        const noVotes = matter.votes.filter((v: any) => v.voteType === 'NO').length
-        const abstentions = matter.votes.filter((v: any) => v.voteType === 'ABSTENTION').length
+        const yesVotes = matter.votes.filter((v) => v.voteType === 'YES').length
+        const noVotes = matter.votes.filter((v) => v.voteType === 'NO').length
+        const abstentions = matter.votes.filter((v) => v.voteType === 'ABSTENTION').length
 
         let newStatus: 'APPROVED' | 'REJECTED' | 'ABSTAINED'
         
@@ -160,8 +160,8 @@ export async function POST(request: NextRequest) {
         }
 
         // Calcular resultado
-        const yesVotes = document.votes.filter((v: any) => v.voteType === 'YES').length
-        const noVotes = document.votes.filter((v: any) => v.voteType === 'NO').length
+        const yesVotes = document.votes.filter((v) => v.voteType === 'YES').length
+        const noVotes = document.votes.filter((v) => v.voteType === 'NO').length
 
         const isApproved = yesVotes > noVotes
 
@@ -226,9 +226,9 @@ export async function GET() {
     let activeVoting = null
 
     if (activeMatterVoting) {
-      const yesVotes = activeMatterVoting.votes.filter((v: any) => v.voteType === 'YES').length
-      const noVotes = activeMatterVoting.votes.filter((v: any) => v.voteType === 'NO').length
-      const abstentions = activeMatterVoting.votes.filter((v: any) => v.voteType === 'ABSTENTION').length
+      const yesVotes = activeMatterVoting.votes.filter((v) => v.voteType === 'YES').length
+      const noVotes = activeMatterVoting.votes.filter((v) => v.voteType === 'NO').length
+      const abstentions = activeMatterVoting.votes.filter((v) => v.voteType === 'ABSTENTION').length
       
       // Buscar total de vereadores presentes na sessão atual
       const currentSession = await prisma.votingSession.findFirst({
@@ -255,8 +255,8 @@ export async function GET() {
         isActive: true
       }
     } else if (activeDocumentVoting) {
-      const yesVotes = activeDocumentVoting.votes.filter((v: any) => v.voteType === 'YES').length
-      const noVotes = activeDocumentVoting.votes.filter((v: any) => v.voteType === 'NO').length
+      const yesVotes = activeDocumentVoting.votes.filter((v) => v.voteType === 'YES').length
+      const noVotes = activeDocumentVoting.votes.filter((v) => v.voteType === 'NO').length
       
       // Buscar total de vereadores presentes na sessão
       const sessionAttendances = await prisma.attendance.count({

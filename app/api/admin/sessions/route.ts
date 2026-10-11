@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 
 
 // GET - Listar todas as sessões
@@ -124,7 +125,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "ID é obrigatório" }, { status: 400 });
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.VotingSessionUpdateInput = {};
     if (title) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (scheduledAt) {

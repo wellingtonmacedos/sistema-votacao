@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { Prisma } from "@prisma/client"
 import { deleteFile, getFileUrl } from "@/lib/s3"
 
 export async function POST(request: NextRequest) {
@@ -110,16 +111,6 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    console.log('📄 Novo documento criado:', {
-      id: document.id,
-      title: document.title,
-      type: document.type,
-      author: document.author,
-      attachmentName: document.attachmentName,
-      attachmentUrl: document.attachmentUrl,
-      creator: document.creator.fullName
-    })
-
     return NextResponse.json({ 
       message: 'Documento criado com sucesso',
       document: {
@@ -156,7 +147,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') || searchParams.get('phase')
 
     // Buscar documentos
-    const whereClause: any = {}
+    const whereClause: Prisma.DocumentWhereInput = {}
     if (sessionId) whereClause.sessionId = sessionId
     if (type) whereClause.type = type
 
@@ -219,11 +210,6 @@ export async function DELETE(request: NextRequest) {
     // Deletar o documento
     await prisma.document.delete({
       where: { id: documentId }
-    })
-
-    console.log('🗑️ Documento deletado:', {
-      id: documentId,
-      title: existingDocument.title
     })
 
     return NextResponse.json({ 

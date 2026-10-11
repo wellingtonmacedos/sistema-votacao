@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator 
 } from "@/components/ui/dropdown-menu"
-import { LogOut, User, Vote } from "lucide-react"
+import { LogOut, Vote } from "lucide-react"
 
 export function Header() {
   const { data: session } = useSession() || {}
@@ -86,14 +86,6 @@ export function Header() {
                     </p>
                   </div>
                 </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  className="cursor-pointer"
-                  onClick={() => alert('Funcionalidade de Perfil em desenvolvimento!')}
-                >
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Perfil</span>
-                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   className="cursor-pointer text-red-600"

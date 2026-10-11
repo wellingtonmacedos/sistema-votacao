@@ -3,6 +3,17 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { Prisma } from '@prisma/client'
+
+const VALID_STATUSES = [
+  'SCHEDULED',
+  'PEQUENO_EXPEDIENTE',
+  'GRANDE_EXPEDIENTE',
+  'ORDEM_DO_DIA',
+  'CONSIDERACOES_FINAIS',
+  'TRIBUNA_LIVE',
+  'CLOSED'
+]
 
 export async function POST(request: Request) {
   try {
@@ -13,6 +24,10 @@ export async function POST(request: Request) {
     }
 
     const { status } = await request.json()
+
+    if (!status) {
+      return NextResponse.json({ error: 'Status é obrigatório' }, { status: 400 })
+    }
 
     // Buscar sessão ativa
     const currentSession = await prisma.votingSession.findFirst({
@@ -30,14 +45,61 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Nenhuma sessão ativa encontrada' }, { status: 404 })
     }
 
-    // Atualizar status da sessão
+    const now = new Date()
+    const isStandardStatus = VALID_STATUSES.includes(status)
+
+    if (currentSession.currentPhase !== status) {
+      // Fechar a fase atual aberta
+      const openPhase = await prisma.sessionPhase.findFirst({
+        where: { sessionId: currentSession.id, endedAt: null },
+        orderBy: { startedAt: 'desc' }
+      })
+      if (openPhase && openPhase.phase !== status) {
+        await prisma.sessionPhase.update({
+          where: { id: openPhase.id },
+          data: { endedAt: now }
+        })
+      }
+
+      // Criar nova fase (se não houver uma aberta para ela)
+      const targetPhaseExisting = await prisma.sessionPhase.findFirst({
+        where: { sessionId: currentSession.id, phase: status },
+        orderBy: { startedAt: 'desc' }
+      })
+
+      const isClosed = status === 'CLOSED'
+      if (!targetPhaseExisting || targetPhaseExisting.endedAt !== null) {
+        await prisma.sessionPhase.create({
+          data: {
+            sessionId: currentSession.id,
+            phase: status,
+            startedAt: now,
+            endedAt: isClosed ? now : null
+          }
+        })
+      } else if (!targetPhaseExisting.endedAt && isClosed) {
+        await prisma.sessionPhase.update({
+          where: { id: targetPhaseExisting.id },
+          data: { endedAt: now }
+        })
+      }
+    }
+
+    // Atualizar sessão
+    const updateData: Prisma.VotingSessionUpdateInput = {
+      currentPhase: status,
+      startedAt: status !== 'SCHEDULED' && !currentSession.startedAt ? now : currentSession.startedAt,
+      endedAt: status === 'CLOSED' ? now : null
+    }
+
+    // Só atualiza o enum status se for um status padrão válido
+    if (isStandardStatus) {
+      updateData.status = status
+    }
+
     await prisma.votingSession.update({
       where: { id: currentSession.id },
-      data: { 
-        status: status,
-        startedAt: status !== 'SCHEDULED' && !currentSession.startedAt ? new Date() : currentSession.startedAt,
-        endedAt: status === 'CLOSED' ? new Date() : null
-      }
+      data: updateData
     })
 
     return NextResponse.json({ success: true })

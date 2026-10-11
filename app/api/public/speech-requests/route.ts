@@ -52,7 +52,7 @@ export async function GET() {
     });
 
     // Formatar e separar por tipo
-    const formatRequest = (request: any) => ({
+    const formatRequest = (request: typeof speechRequests[number]) => ({
       id: request.id,
       name: request.user?.fullName || request.citizenName || 'N/A',
       party: request.user?.party || 'Vereador',
