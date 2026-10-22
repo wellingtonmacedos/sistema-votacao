@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "react-hot-toast"
+import { getPhaseLabel, toPhaseStatusKey } from "@/lib/phase-utils"
 import { 
   UserCheck,
   Vote,
@@ -36,7 +37,9 @@ import {
   Users,
   FileText,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react"
 
 // Tipos
@@ -44,6 +47,7 @@ interface SessionData {
   id: string
   sessionNumber: string
   status: string
+  currentPhase: string
   date: string
   isAttendanceOpen: boolean
   isSpeechRequestsOpen: boolean
@@ -105,17 +109,7 @@ interface SessionDocument {
   createdAt: string
 }
 
-// Mapeamento de fases
-const phaseLabels: Record<string, string> = {
-  'SCHEDULED': 'Agendada',
-  'PEQUENO_EXPEDIENTE': 'Pequeno Expediente',
-  'GRANDE_EXPEDIENTE': 'Grande Expediente',
-  'ORDEM_DO_DIA': 'Ordem do Dia',
-  'CONSIDERACOES_FINAIS': 'Considerações Finais',
-  'TRIBUNA_LIVE': 'Tribuna Livre',
-  'CLOSED': 'Encerrada'
-}
-
+// Cores por fase (chave do enum)
 const phaseColors: Record<string, string> = {
   'SCHEDULED': 'bg-gray-500',
   'PEQUENO_EXPEDIENTE': 'bg-blue-500',
@@ -134,6 +128,7 @@ export function CouncilorDashboard() {
   const [presenceLoading, setPresenceLoading] = useState(false)
   const [speechLoading, setSpeechLoading] = useState(false)
   const [sessionDocuments, setSessionDocuments] = useState<SessionDocument[]>([])
+  const [expandedDocumentIds, setExpandedDocumentIds] = useState<string[]>([])
   const [voteConfirmDialog, setVoteConfirmDialog] = useState<{
     open: boolean
     voteType: 'YES' | 'NO' | 'ABSTENTION' | null
@@ -260,6 +255,14 @@ export function CouncilorDashboard() {
     }
   }
 
+  const toggleDocumentExpanded = (documentId: string) => {
+    setExpandedDocumentIds((current) =>
+      current.includes(documentId)
+        ? current.filter((id) => id !== documentId)
+        : [...current, documentId]
+    )
+  }
+
   // Loading state
   if (loading) {
     return (
@@ -309,6 +312,55 @@ export function CouncilorDashboard() {
   }
 
   const { session: sessionData, presence, currentVoting, myVote, speechRequests, queuePosition } = status
+  const activePhaseKey = toPhaseStatusKey(sessionData?.currentPhase || sessionData?.status)
+  const activePhaseLabel = getPhaseLabel(sessionData?.currentPhase || sessionData?.status)
+
+  const needsAttendance = Boolean(sessionData?.isAttendanceOpen && !presence?.isPresent)
+  const needsVote = Boolean(currentVoting?.isActive && !myVote)
+  const needsSpeechRequest = Boolean(sessionData?.isSpeechRequestsOpen) && speechRequests.length === 0
+  const hasPriorityAction = needsAttendance || needsVote || needsSpeechRequest
+
+  const priorityAction = needsAttendance
+    ? {
+        title: 'A chamada de presença está aberta para você.',
+        description: 'Registre sua presença antes de continuar acompanhando a sessão.',
+        buttonLabel: presenceLoading ? 'Registrando...' : 'Assinar Presença',
+        onAction: () => handleMarkPresence(),
+        disabled: presenceLoading,
+        tone: 'border-amber-400 bg-amber-50',
+        toneText: 'text-amber-900',
+        toneLabel: 'text-amber-700',
+        toneDescription: 'text-amber-800',
+        toneButton: 'bg-amber-600 hover:bg-amber-700'
+      }
+    : needsVote
+      ? {
+          title: 'Há uma votação aberta aguardando seu voto.',
+          description: 'Registre seu voto agora. A área de votação foi movida para cima da tela.',
+          buttonLabel: 'Ir para Votação',
+          onAction: () => {
+            const votingSection = document.getElementById('painel-votacao')
+            votingSection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          },
+          disabled: votingInProgress,
+          tone: 'border-purple-400 bg-purple-50',
+          toneText: 'text-purple-900',
+          toneLabel: 'text-purple-700',
+          toneDescription: 'text-purple-800',
+          toneButton: 'bg-purple-600 hover:bg-purple-700'
+        }
+      : {
+          title: 'As inscrições para Considerações Finais estão abertas.',
+          description: 'Solicite sua fala agora. A seção foi destacada para facilitar o acesso.',
+          buttonLabel: speechLoading ? 'Enviando...' : 'Solicitar Fala',
+          onAction: () => handleSpeechRequest(),
+          disabled: speechLoading,
+          tone: 'border-green-400 bg-green-50',
+          toneText: 'text-green-900',
+          toneLabel: 'text-green-700',
+          toneDescription: 'text-green-800',
+          toneButton: 'bg-green-600 hover:bg-green-700'
+        }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -324,6 +376,32 @@ export function CouncilorDashboard() {
             Bem-vindo(a), {session?.user?.name}
           </p>
         </div>
+
+        {hasPriorityAction && (
+          <Card className={`sticky top-20 z-20 mb-6 border-2 shadow-lg ${priorityAction.tone}`}>
+            <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className={`text-sm font-semibold uppercase tracking-wide ${priorityAction.toneLabel}`}>
+                  Ação prioritária
+                </p>
+                <p className={`text-base font-semibold ${priorityAction.toneText}`}>
+                  {priorityAction.title}
+                </p>
+                <p className={`text-sm ${priorityAction.toneDescription}`}>
+                  {priorityAction.description}
+                </p>
+              </div>
+              <Button
+                onClick={priorityAction.onAction}
+                disabled={priorityAction.disabled}
+                size="lg"
+                className={`text-white ${priorityAction.toneButton}`}
+              >
+                {priorityAction.buttonLabel}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* ============================================= */}
         {/* SEÇÃO 1: STATUS DA SESSÃO */}
@@ -346,9 +424,9 @@ export function CouncilorDashboard() {
                 </CardDescription>
               </div>
               <Badge 
-                className={`${phaseColors[sessionData?.status || '']} text-white text-sm px-3 py-1`}
+                className={`${phaseColors[activePhaseKey || ''] || 'bg-gray-500'} text-white text-sm px-3 py-1`}
               >
-                {phaseLabels[sessionData?.status || ''] || sessionData?.status}
+                {activePhaseLabel}
               </Badge>
             </div>
           </CardHeader>
@@ -446,69 +524,17 @@ export function CouncilorDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="mb-6 border border-gray-200 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <FileText className="h-5 w-5 text-indigo-600" />
-              Documentos da Sessão
-            </CardTitle>
-            <CardDescription>
-              Consulte apenas os documentos cadastrados nesta sessão legislativa.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {sessionDocuments.length === 0 ? (
-              <div className="text-center py-6 text-gray-500">
-                <FileText className="h-10 w-10 mx-auto mb-2 text-gray-300" />
-                <p className="font-medium">Nenhum documento cadastrado nesta sessão</p>
-                <p className="text-sm">Os PDFs anexados pelo administrador aparecerão aqui para consulta.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {sessionDocuments.map((document) => (
-                  <div key={document.id} className="rounded-lg border border-gray-200 bg-white p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-semibold text-gray-900">{document.title}</h3>
-                          <Badge variant="outline">{document.type}</Badge>
-                        </div>
-                        <p className="mt-1 text-sm text-gray-600">
-                          {document.author ? `Autor: ${document.author}` : 'Autor não informado'} • {document.phase.replace(/_/g, ' ')}
-                        </p>
-                        {document.content && (
-                          <p className="mt-2 text-sm text-gray-600">{document.content}</p>
-                        )}
-                      </div>
-                      {document.attachmentUrl ? (
-                        <Button
-                          onClick={() => window.open(document.attachmentUrl!, '_blank', 'noopener,noreferrer')}
-                          className="w-full sm:w-auto"
-                        >
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          Abrir PDF
-                        </Button>
-                      ) : (
-                        <Badge variant="secondary" className="w-fit">
-                          Sem PDF anexo
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         {/* ============================================= */}
         {/* SEÇÃO 3: VOTAÇÃO (ORDEM DO DIA) */}
         {/* ============================================= */}
-        <Card className={`mb-6 transition-all duration-300 ${
-          currentVoting?.isActive && !myVote
-            ? 'border-2 border-purple-400 bg-purple-50 shadow-lg'
-            : 'border border-gray-200'
-        }`}>
+        <Card
+          id="painel-votacao"
+          className={`mb-6 transition-all duration-300 ${
+            currentVoting?.isActive && !myVote
+              ? 'border-2 border-purple-400 bg-purple-50 shadow-lg'
+              : 'border border-gray-200'
+          }`}
+        >
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Vote className={`h-5 w-5 ${currentVoting?.isActive ? 'text-purple-600' : 'text-gray-600'}`} />
@@ -535,7 +561,6 @@ export function CouncilorDashboard() {
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Matéria em votação */}
                 <div className="p-4 bg-white rounded-lg border border-purple-200">
                   <h3 className="font-semibold text-gray-900 mb-1">
                     {currentVoting.title}
@@ -550,7 +575,6 @@ export function CouncilorDashboard() {
                   )}
                 </div>
 
-                {/* Já votou */}
                 {myVote ? (
                   <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <div className="flex items-center gap-3">
@@ -568,7 +592,6 @@ export function CouncilorDashboard() {
                     </div>
                   </div>
                 ) : (
-                  /* Botões de votação */
                   <div className="space-y-3">
                     <p className="text-sm text-gray-600 font-medium">Registre seu voto:</p>
                     <div className="grid grid-cols-3 gap-3">
@@ -604,7 +627,6 @@ export function CouncilorDashboard() {
                   </div>
                 )}
 
-                {/* Contador de votos */}
                 <div className="flex justify-around p-3 bg-gray-50 rounded-lg text-sm">
                   <div className="text-center">
                     <span className="font-bold text-green-600 text-lg">{currentVoting.votes.yes}</span>
@@ -619,6 +641,92 @@ export function CouncilorDashboard() {
                     <p className="text-gray-500">Abst.</p>
                   </div>
                 </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="mb-6 border border-gray-200 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-indigo-600" />
+                  Documentos da Sessão
+                </CardTitle>
+                <CardDescription>
+                  Lista compacta dos documentos cadastrados nesta sessão.
+                </CardDescription>
+              </div>
+              <Badge variant="outline">
+                {sessionDocuments.length} documento{sessionDocuments.length === 1 ? '' : 's'}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {sessionDocuments.length === 0 ? (
+              <div className="text-center py-6 text-gray-500">
+                <FileText className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+                <p className="font-medium">Nenhum documento cadastrado nesta sessão</p>
+                <p className="text-sm">Os PDFs anexados pelo administrador aparecerão aqui para consulta.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {sessionDocuments.map((document) => (
+                  <div key={document.id} className="rounded-lg border border-gray-200 bg-white p-3">
+                    <div className="flex flex-col gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="line-clamp-2 font-semibold text-gray-900">{document.title}</h3>
+                            <p className="mt-1 text-sm text-gray-600">
+                              {document.author ? `Autor: ${document.author}` : 'Autor não informado'} • {document.phase.replace(/_/g, ' ')}
+                            </p>
+                          </div>
+                          <Badge variant="outline">{document.type}</Badge>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {document.content && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => toggleDocumentExpanded(document.id)}
+                          >
+                            {expandedDocumentIds.includes(document.id) ? (
+                              <ChevronUp className="h-4 w-4 mr-2" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 mr-2" />
+                            )}
+                            {expandedDocumentIds.includes(document.id) ? 'Ocultar texto' : 'Ler resumo'}
+                          </Button>
+                        )}
+                        {document.attachmentUrl ? (
+                          <Button
+                            onClick={() => window.open(document.attachmentUrl!, '_blank', 'noopener,noreferrer')}
+                            variant="outline"
+                            size="sm"
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Abrir PDF
+                          </Button>
+                        ) : (
+                          <Badge variant="secondary" className="w-fit">
+                            Sem PDF
+                          </Badge>
+                        )}
+                      </div>
+
+                      {document.content && expandedDocumentIds.includes(document.id) && (
+                        <div className="rounded-md bg-gray-50 p-3 text-sm text-gray-700">
+                          {document.content}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
@@ -644,7 +752,7 @@ export function CouncilorDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {sessionData?.status !== 'CONSIDERACOES_FINAIS' && !sessionData?.isSpeechRequestsOpen ? (
+            {activePhaseKey !== 'CONSIDERACOES_FINAIS' && !sessionData?.isSpeechRequestsOpen ? (
               <div className="text-center py-6 text-gray-500">
                 <MessageSquare className="h-10 w-10 mx-auto mb-2 text-gray-300" />
                 <p className="font-medium">Aguardando Considerações Finais</p>

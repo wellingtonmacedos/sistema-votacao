@@ -192,6 +192,7 @@ export async function GET(request: NextRequest) {
         id: currentSession.id,
         sessionNumber: currentSession.sessionNumber,
         status: currentSession.status,
+        currentPhase: currentSession.currentPhase,
         date: currentSession.date,
         isAttendanceOpen: currentSession.isAttendanceOpen,
         isSpeechRequestsOpen: currentSession.isSpeechRequestsOpen,

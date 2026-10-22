@@ -118,8 +118,27 @@ model VotingSession {
   documents      Document[]
   speechRequests SpeechRequest[]
   phases         SessionPhase[]
+  scriptItems    SessionScriptItem[]
 
   @@map("voting_sessions")
+}
+
+// Itens do roteiro de cada sessão, cadastrados pelo administrador
+model SessionScriptItem {
+  id             String        @id @default(cuid())
+  sessionId      String
+  sectionTitle   String?
+  content        String
+  orderIndex     Int           @default(0)
+  isCompleted    Boolean       @default(false)
+  completedAt    DateTime?
+  presidentNotes String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  session        VotingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("session_script_items")
 }
 
 // Pautas/matérias para votação
@@ -225,6 +244,20 @@ model Document {
   votes       DocumentVote[]
 
   @@map("documents")
+}
+
+// Tipos de documento configuráveis globalmente para qualquer etapa da sessão
+model DocumentType {
+  id         String   @id @default(cuid())
+  label      String
+  value      String
+  orderIndex Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([value])
+  @@map("document_types")
 }
 
 // Votos nos documentos (ata anterior, dispensa, etc.)

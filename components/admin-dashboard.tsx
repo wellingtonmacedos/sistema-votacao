@@ -2,7 +2,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -62,6 +62,18 @@ import {
   Save
 } from "lucide-react"
 import Link from "next/link"
+import { toPhaseStatusKey } from "@/lib/phase-utils"
+
+// Filtro de documentos por fase (usado no Controle Principal da Sessão)
+const PHASE_DOCUMENT_FILTERS: Record<string, (doc: any) => boolean> = {
+  PEQUENO_EXPEDIENTE: (doc) =>
+    doc.phase === 'PEQUENO_EXPEDIENTE' ||
+    ['ATA_ANTERIOR', 'DISPENSA_ATA', 'COMUNICADO'].includes(doc.type),
+  GRANDE_EXPEDIENTE: (doc) =>
+    doc.phase === 'GRANDE_EXPEDIENTE' ||
+    ['REQUERIMENTO', 'PROJETO', 'INDICACAO', 'MOCAO'].includes(doc.type),
+  ORDEM_DO_DIA: (doc) => Boolean(doc.isOrdemDoDia)
+}
 
 // Definição dos itens do menu lateral
 const menuItems = [
@@ -69,6 +81,7 @@ const menuItems = [
   { id: 'vereadores', label: 'Vereadores', icon: Users, color: 'text-indigo-600' },
   { id: 'sessoes', label: 'Sessões', icon: Calendar, color: 'text-purple-600' },
   { id: 'fases', label: 'Fases', icon: Layers, color: 'text-fuchsia-600' },
+  { id: 'tipos-documento', label: 'Tipos de Docs', icon: Briefcase, color: 'text-sky-600' },
   { id: 'painel', label: 'Painel Público', icon: Monitor, color: 'text-cyan-600' },
   { id: 'pequeno', label: 'Peq. Expediente', icon: FileText, color: 'text-green-600' },
   { id: 'grande', label: 'Gr. Expediente', icon: ScrollText, color: 'text-emerald-600' },
@@ -918,6 +931,304 @@ const PHASE_COLORS = [
   '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
   '#14b8a6', '#a855f7', '#eab308', '#6b7280'
 ]
+
+function DocumentTypesTab() {
+  const [documentTypes, setDocumentTypes] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingDocumentType, setEditingDocumentType] = useState<any>(null)
+  const [formData, setFormData] = useState<{
+    label: string
+    value: string
+    orderIndex: number
+    isActive: boolean
+  }>({
+    label: '',
+    value: '',
+    orderIndex: 0,
+    isActive: true
+  })
+
+  useEffect(() => {
+    fetchDocumentTypes()
+  }, [])
+
+  const fetchDocumentTypes = async () => {
+    try {
+      const response = await fetch('/api/admin/document-types')
+      if (response.ok) {
+        const data = await response.json()
+        setDocumentTypes(data)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar tipos de documento:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const resetForm = () => {
+    setEditingDocumentType(null)
+    setFormData({
+      label: '',
+      value: '',
+      orderIndex: documentTypes.length,
+      isActive: true
+    })
+  }
+
+  const handleSubmit = async () => {
+    if (!formData.label.trim() || !formData.value.trim()) {
+      toast.error('Informe o nome e o código do tipo')
+      return
+    }
+
+    try {
+      const body = editingDocumentType
+        ? { id: editingDocumentType.id, ...formData }
+        : formData
+
+      const response = await fetch('/api/admin/document-types', {
+        method: editingDocumentType ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+
+      if (response.ok) {
+        toast.success(editingDocumentType ? 'Tipo atualizado!' : 'Tipo criado!')
+        setIsDialogOpen(false)
+        resetForm()
+        fetchDocumentTypes()
+      } else {
+        const error = await response.json()
+        toast.error(error.error || 'Erro ao salvar tipo')
+      }
+    } catch (error) {
+      toast.error('Erro ao salvar tipo')
+    }
+  }
+
+  const handleEdit = (documentType: any) => {
+    setEditingDocumentType(documentType)
+    setFormData({
+      label: documentType.label,
+      value: documentType.value,
+      orderIndex: documentType.orderIndex,
+      isActive: documentType.isActive
+    })
+    setIsDialogOpen(true)
+  }
+
+  const handleDelete = async (documentType: any) => {
+    if (!confirm(`Tem certeza que deseja excluir o tipo "${documentType.label}"?`)) return
+
+    try {
+      const response = await fetch(`/api/admin/document-types?id=${documentType.id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        toast.success('Tipo excluído!')
+        fetchDocumentTypes()
+      } else {
+        const error = await response.json()
+        toast.error(error.error || 'Erro ao excluir tipo')
+      }
+    } catch (error) {
+      toast.error('Erro ao excluir tipo')
+    }
+  }
+
+  const handleToggleActive = async (documentType: any) => {
+    try {
+      const response = await fetch('/api/admin/document-types', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: documentType.id, isActive: !documentType.isActive })
+      })
+
+      if (response.ok) {
+        toast.success(documentType.isActive ? 'Tipo desativado!' : 'Tipo ativado!')
+        fetchDocumentTypes()
+      }
+    } catch (error) {
+      toast.error('Erro ao alterar status')
+    }
+  }
+
+  const handleReorder = async (documentType: any, direction: 'up' | 'down') => {
+    const currentIndex = documentTypes.findIndex((item) => item.id === documentType.id)
+    if (direction === 'up' && currentIndex === 0) return
+    if (direction === 'down' && currentIndex === documentTypes.length - 1) return
+
+    const swapWith = direction === 'up'
+      ? documentTypes[currentIndex - 1]
+      : documentTypes[currentIndex + 1]
+
+    try {
+      await Promise.all([
+        fetch('/api/admin/document-types', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: documentType.id, orderIndex: swapWith.orderIndex })
+        }),
+        fetch('/api/admin/document-types', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: swapWith.id, orderIndex: documentType.orderIndex })
+        })
+      ])
+      fetchDocumentTypes()
+    } catch (error) {
+      toast.error('Erro ao reordenar tipos')
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2">
+            <Briefcase className="h-5 w-5 text-sky-600" />
+            Cadastro Global de Tipos de Documento
+          </CardTitle>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open)
+            if (!open) {
+              resetForm()
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button className="bg-sky-600 hover:bg-sky-700">
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Tipo
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingDocumentType ? 'Editar Tipo de Documento' : 'Criar Tipo de Documento'}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium block mb-1">Nome de Exibição *</label>
+                  <Input
+                    value={formData.label}
+                    onChange={(e) => setFormData({ ...formData, label: e.target.value })}
+                    placeholder="Ex: Requerimento, Ata Anterior, Ofício"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium block mb-1">Código Interno *</label>
+                  <Input
+                    value={formData.value}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      value: e.target.value.toUpperCase().replace(/\s+/g, '_')
+                    })}
+                    placeholder="Ex: REQUERIMENTO"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Use letras maiúsculas, números e underscore. Esse código é salvo no documento.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="documentTypeActive"
+                    checked={formData.isActive}
+                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <label htmlFor="documentTypeActive" className="text-sm">Tipo ativo no cadastro de documentos</label>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+                  <Button onClick={handleSubmit} className="bg-sky-600 hover:bg-sky-700">
+                    <Save className="h-4 w-4 mr-2" />
+                    {editingDocumentType ? 'Salvar' : 'Criar'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="py-8 text-center">Carregando...</div>
+        ) : (
+          <div className="space-y-6">
+            <p className="text-sm text-gray-500">
+              Os tipos cadastrados aqui ficam disponíveis no cadastro de documentos em qualquer etapa da sessão.
+            </p>
+            {documentTypes.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-4 text-sm text-gray-500">
+                Nenhum tipo de documento cadastrado.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {documentTypes.map((item, index) => (
+                  <div
+                    key={item.id}
+                    className={`flex items-center justify-between rounded-lg border p-4 ${item.isActive ? 'bg-white' : 'bg-gray-50 opacity-70'}`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold">{item.label}</h4>
+                        <Badge variant="outline">{item.value}</Badge>
+                        {!item.isActive && (
+                          <Badge variant="outline" className="text-gray-500">Inativo</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500">Ordem: {item.orderIndex}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleReorder(item, 'up')}
+                        disabled={index === 0}
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleReorder(item, 'down')}
+                        disabled={index === documentTypes.length - 1}
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleEdit(item)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleToggleActive(item)}
+                        className={item.isActive ? 'text-orange-500' : 'text-green-600'}
+                      >
+                        {item.isActive ? 'Desativar' : 'Ativar'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDelete(item)}
+                        className="text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
 // Componente para gerenciar Fases da Sessão
 function FasesTab() {
@@ -1906,6 +2217,12 @@ function SessoesTab() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/admin/roteiro/${session.id}`}>
+                        <BookOpen className="h-4 w-4 mr-1" />
+                        Roteiro
+                      </Link>
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => handleEdit(session)}>
                       <Edit className="h-4 w-4 mr-1" />
                       Editar
@@ -1939,6 +2256,8 @@ export function AdminDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [currentSession, setCurrentSession] = useState<any>(null)
   const [sessionPhase, setSessionPhase] = useState('SCHEDULED')
+  // Guarda contra respostas fora de ordem no polling (evita reverter a fase exibida)
+  const sessionRequestIdRef = useRef(0)
   const [documents, setDocuments] = useState<any[]>([])
   const [readingDocument, setReadingDocument] = useState<string | null>(null)
   const [timerActive, setTimerActive] = useState(false)
@@ -1959,6 +2278,7 @@ export function AdminDashboard() {
   
   // Estados para o modal de adicionar documento
   const [isAddDocumentOpen, setIsAddDocumentOpen] = useState(false)
+  const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null)
   const [documentPhase, setDocumentPhase] = useState('')
   const [availableSessions, setAvailableSessions] = useState<any[]>([]) // Lista de sessões disponíveis
   const [documentForm, setDocumentForm] = useState({
@@ -1992,6 +2312,7 @@ export function AdminDashboard() {
 
   // Estado para fases customizadas (Controle das Fases dinâmico)
   const [phases, setPhases] = useState<any[]>([])
+  const [documentTypes, setDocumentTypes] = useState<any[]>([])
 
   const fetchPhases = async () => {
     try {
@@ -2003,6 +2324,27 @@ export function AdminDashboard() {
     } catch (error) {
       console.error('Erro ao carregar fases:', error)
     }
+  }
+
+  const fetchDocumentTypes = async () => {
+    try {
+      const response = await fetch('/api/admin/document-types')
+      if (response.ok) {
+        const data = await response.json()
+        setDocumentTypes(data)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar tipos de documento:', error)
+    }
+  }
+
+  const getAvailableDocumentTypes = () => {
+    return documentTypes.filter((item: any) => item.isActive)
+  }
+
+  const getDocumentTypeLabel = (typeValue: string) => {
+    const documentType = documentTypes.find((item: any) => item.value === typeValue)
+    return documentType?.label || typeValue
   }
 
   const phaseColorClass = (phase: string) => {
@@ -2064,41 +2406,53 @@ export function AdminDashboard() {
   useEffect(() => {
     fetchSessionData()
     fetchPhases()
+    fetchDocumentTypes()
     
     // Polling mais eficiente para o admin
     const interval = setInterval(fetchSessionData, 2000) // 2 segundos
     const phasesInterval = setInterval(fetchPhases, 10000) // 10 segundos para fases
-    return () => { clearInterval(interval); clearInterval(phasesInterval) }
+    const documentTypesInterval = setInterval(fetchDocumentTypes, 15000)
+    return () => {
+      clearInterval(interval)
+      clearInterval(phasesInterval)
+      clearInterval(documentTypesInterval)
+    }
   }, [])
 
   const fetchSessionData = async () => {
+    // Guarda contra respostas fora de ordem: só a requisição mais recente
+    // pode atualizar o estado, evitando reverter a fase exibida para a anterior.
+    const requestId = ++sessionRequestIdRef.current
     try {
-      let activeSessionId = null
-      const response = await fetch('/api/public/current-session')
+      // Todas as requisições em paralelo: evita o waterfall sequencial que
+      // multiplicava a latência por 5 a cada ciclo de polling.
+      const [response, docsResponse, attendanceResponse, votingResponse, sessionsResponse] = await Promise.all([
+        fetch('/api/public/current-session'),
+        fetch('/api/session/documents'),
+        fetch('/api/public/attendance'),
+        fetch('/api/admin/voting'),
+        fetch('/api/admin/sessions')
+      ])
+
+      // Descarta o lote inteiro se já existir uma requisição mais recente em andamento
+      if (requestId !== sessionRequestIdRef.current) return
+
       if (response.ok) {
         const data = await response.json()
         if (data) {
           setCurrentSession(data)
           setSessionPhase(data.currentPhase || data.status)
           setTimerActive(!!data.timer?.isActive)
-          activeSessionId = data.id
         }
       }
 
-      // Buscar documentos da sessão
-      // Se tivermos uma sessão ativa, buscamos os documentos dela especificamente
-      const docsUrl = activeSessionId 
-        ? `/api/session/documents?sessionId=${activeSessionId}`
-        : '/api/session/documents'
-        
-      const docsResponse = await fetch(docsUrl)
+      // Documentos da sessão ativa
       if (docsResponse.ok) {
         const docsData = await docsResponse.json()
         setDocuments(docsData)
       }
 
-      // Buscar status da chamada de presença
-      const attendanceResponse = await fetch('/api/public/attendance')
+      // Status da chamada de presença
       if (attendanceResponse.ok) {
         const attData = await attendanceResponse.json()
         if (attData) {
@@ -2113,15 +2467,13 @@ export function AdminDashboard() {
         }
       }
 
-      // Buscar votação ativa
-      const votingResponse = await fetch('/api/admin/voting')
+      // Votação ativa
       if (votingResponse.ok) {
         const votingData = await votingResponse.json()
         setActiveVoting(votingData.activeVoting)
       }
 
-      // Buscar sessões agendadas
-      const sessionsResponse = await fetch('/api/admin/sessions')
+      // Sessões agendadas
       if (sessionsResponse.ok) {
         const sessionsData = await sessionsResponse.json()
         const scheduled = sessionsData.filter((s: any) => s.status === 'SCHEDULED')
@@ -2167,6 +2519,7 @@ export function AdminDashboard() {
     if (isAddDocumentOpen) {
       fetchCouncilorsForDocument()
       fetchAvailableSessions()
+      fetchDocumentTypes()
     }
   }, [isAddDocumentOpen])
 
@@ -2374,8 +2727,8 @@ export function AdminDashboard() {
       
       if (response.ok) {
         setReadingDocument(isReading ? documentId : null)
-        await fetchSessionData()
         toast.success(isReading ? '✓ Documento exibido no painel!' : '✓ Exibição encerrada!', { id: 'doc-reading' })
+        fetchSessionData()
       } else {
         const error = await response.json()
         toast.error(error.error || 'Erro ao controlar exibição', { id: 'doc-reading' })
@@ -2614,14 +2967,14 @@ export function AdminDashboard() {
       if (response.ok) {
         const result = await response.json()
         
-        // Atualizar dados do admin imediatamente
-        await fetchSessionData()
-        
         // Feedback aprimorado
         toast.success('🗳️ Votação iniciada! O painel público foi atualizado automaticamente.', { 
           id: 'voting-start',
           duration: 4000 
         })
+        
+        // Atualizar dados do admin em segundo plano (não bloqueia o usuário)
+        fetchSessionData()
         
         // Abrir painel público automaticamente se solicitado
         if (confirm('Deseja abrir o painel público para acompanhar a votação?')) {
@@ -2677,9 +3030,9 @@ export function AdminDashboard() {
         const result = await response.json()
         toast.success('✅ Votação encerrada com sucesso! Resultado calculado.', { id: 'voting-end' })
         
-        // Mostrar resultado temporariamente no painel público
-        await showVotingResult(result, itemTitle)
-        await fetchSessionData()
+        // Enviar resultado ao painel público e atualizar dados em segundo plano
+        showVotingResult(result, itemTitle)
+        fetchSessionData()
       } else {
         const error = await response.json()
         toast.error(`❌ ${error.error || 'Erro ao encerrar votação'}`, { id: 'voting-end' })
@@ -2817,19 +3170,11 @@ export function AdminDashboard() {
   }
 
   const handleAddDocument = (phase: string) => {
-    // Definir o tipo de documento baseado na fase
-    const documentTypes: Record<string, string[]> = {
-      'GRANDE_EXPEDIENTE': ['REQUERIMENTO', 'PROJETO'],
-      'ORDEM_DO_DIA': ['PROJETO', 'REQUERIMENTO']
-    }
+    const availableTypes = getAvailableDocumentTypes()
     
     setDocumentPhase(phase)
-    
-    // Para Pequeno Expediente, o tipo é livre (string vazia inicial)
-    // Para outros, usa o primeiro tipo da lista
-    const initialType = phase === 'PEQUENO_EXPEDIENTE' 
-      ? '' 
-      : (documentTypes[phase]?.[0] || 'REQUERIMENTO')
+    setEditingDocumentId(null)
+    const initialType = availableTypes[0]?.value || ''
 
     setDocumentForm({
       title: '',
@@ -2842,23 +3187,86 @@ export function AdminDashboard() {
       attachmentMimeType: '',
       selectedAuthors: []
     })
-    setIsAddDocumentOpen(true)
-  }
 
-  const handleSaveDocument = async () => {
-    // Validação básica
-    if (!documentForm.title || !documentForm.type || !documentForm.sessionId) {
-      toast.error('Por favor, preencha título, tipo e sessão')
+    if (availableTypes.length === 0) {
+      toast.error('Cadastre ao menos um tipo de documento para esta fase antes de continuar')
+      setActiveTab('tipos-documento')
       return
     }
 
-    if (!documentForm.content.trim() && !documentForm.attachmentUrl) {
+    setIsAddDocumentOpen(true)
+  }
+
+  const handleEditDocument = (doc: any) => {
+    const authorNames = typeof doc.author === 'string'
+      ? doc.author.split(',').map((name: string) => name.trim()).filter(Boolean)
+      : []
+
+    setEditingDocumentId(doc.id)
+    setDocumentPhase(doc.phase || '')
+    setDocumentForm({
+      title: doc.title || '',
+      type: doc.type || '',
+      content: doc.content || '',
+      sessionId: currentSession?.id || '',
+      attachmentName: doc.attachmentName || '',
+      attachmentPath: '',
+      attachmentUrl: doc.attachmentUrl || '',
+      attachmentMimeType: doc.attachmentMimeType || '',
+      selectedAuthors: councilorsForDocument
+        .filter((councilor) => authorNames.includes(councilor.fullName))
+        .map((councilor) => councilor.id)
+    })
+
+    setIsAddDocumentOpen(true)
+  }
+
+  const handleDeleteDocument = async (documentId: string, documentTitle: string) => {
+    if (!confirm(`Tem certeza que deseja excluir o documento "${documentTitle}"? Esta ação não pode ser desfeita.`)) {
+      return
+    }
+
+    try {
+      toast.loading('Excluindo documento...', { id: 'delete-document' })
+
+      const response = await fetch(`/api/admin/documents?id=${documentId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        toast.success('🗑️ Documento excluído com sucesso!', { id: 'delete-document' })
+        await fetchSessionData()
+      } else {
+        const error = await response.json()
+        toast.error(`❌ ${error.error || 'Erro ao excluir documento'}`, { id: 'delete-document' })
+      }
+    } catch (error) {
+      console.error('Erro ao excluir documento:', error)
+      toast.error('❌ Erro de conexão ao excluir documento', { id: 'delete-document' })
+    }
+  }
+
+  const handleSaveDocument = async () => {
+    const isEditing = Boolean(editingDocumentId)
+
+    // Validação básica
+    if (!documentForm.title || !documentForm.type) {
+      toast.error('Por favor, preencha título e tipo')
+      return
+    }
+
+    if (!isEditing && !documentForm.sessionId) {
+      toast.error('Por favor, selecione a sessão')
+      return
+    }
+
+    if (!isEditing && !documentForm.content.trim() && !documentForm.attachmentUrl) {
       toast.error('Informe um resumo/conteúdo ou anexe um PDF')
       return
     }
 
     try {
-      toast.loading('Salvando documento...', { id: 'save-document' })
+      toast.loading(isEditing ? 'Atualizando documento...' : 'Salvando documento...', { id: 'save-document' })
       
       // Converter IDs selecionados em nomes dos autores
       const authorNames = documentForm.selectedAuthors
@@ -2867,9 +3275,15 @@ export function AdminDashboard() {
         .join(', ')
       
       const response = await fetch('/api/admin/documents', {
-        method: 'POST',
+        method: isEditing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: JSON.stringify(isEditing ? {
+          id: editingDocumentId,
+          title: documentForm.title,
+          type: documentForm.type,
+          content: documentForm.content,
+          author: authorNames || null
+        } : {
           title: documentForm.title,
           type: documentForm.type,
           content: documentForm.content,
@@ -2884,23 +3298,10 @@ export function AdminDashboard() {
       })
 
       if (response.ok) {
-        const result = await response.json()
-        toast.success('✅ Documento adicionado com sucesso!', { id: 'save-document' })
+        toast.success(isEditing ? '✅ Documento atualizado com sucesso!' : '✅ Documento adicionado com sucesso!', { id: 'save-document' })
         
         // Resetar formulário e fechar modal
-        setDocumentForm({
-          title: '',
-          type: '',
-          content: '',
-          sessionId: '',
-          attachmentName: '',
-          attachmentPath: '',
-          attachmentUrl: '',
-          attachmentMimeType: '',
-          selectedAuthors: []
-        })
-        setDocumentPhase('')
-        setIsAddDocumentOpen(false)
+        resetDocumentForm()
         
         // Atualizar lista de documentos
         await fetchSessionData()
@@ -2927,6 +3328,7 @@ export function AdminDashboard() {
       selectedAuthors: []
     })
     setDocumentPhase('')
+    setEditingDocumentId(null)
     setIsAddDocumentOpen(false)
   }
 
@@ -2935,6 +3337,106 @@ export function AdminDashboard() {
   }
 
   const activeTabInfo = menuItems.find((item) => item.id === activeTab)
+
+  // Fase em foco no Controle Principal e seus documentos
+  const activePhaseKey = toPhaseStatusKey(sessionPhase)
+  const activePhaseDocFilter = activePhaseKey ? PHASE_DOCUMENT_FILTERS[activePhaseKey] : undefined
+  const activePhaseDocuments = activePhaseDocFilter ? documents.filter(activePhaseDocFilter) : []
+
+  // Ações de documento reutilizadas (Controle Principal) agrupadas por botão
+  const renderDocumentActions = (doc: any) => {
+    const hasOrdemAction = activePhaseKey === 'PEQUENO_EXPEDIENTE' || activePhaseKey === 'GRANDE_EXPEDIENTE'
+    return (
+      <>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleViewDocument(doc.id, doc.title, doc.content, doc.attachmentUrl)}
+        >
+          <Eye className="h-4 w-4 mr-1" />
+          {doc.attachmentUrl ? 'Abrir PDF' : 'Ver'}
+        </Button>
+        {doc.attachmentUrl && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(doc.attachmentUrl, '_blank', 'noopener,noreferrer')}
+          >
+            <ExternalLink className="h-4 w-4 mr-1" />
+            PDF
+          </Button>
+        )}
+        {readingDocument === doc.id ? (
+          <Button variant="destructive" size="sm" onClick={() => setDocumentReading(doc.id, false)}>
+            <StopCircle className="h-4 w-4 mr-1" />
+            Parar Exibição
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            onClick={() => setDocumentReading(doc.id, true)}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <Monitor className="h-4 w-4 mr-1" />
+            Mostrar no Painel
+          </Button>
+        )}
+        {activeVoting?.type === 'document' && activeVoting?.id === doc.id ? (
+          <Button
+            size="sm"
+            onClick={() => handleEndVoting('document', doc.id, doc.title)}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            <StopCircle className="h-4 w-4 mr-1" />
+            Encerrar Votação
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            onClick={() => handleVoteDocument(doc.id)}
+            className="bg-blue-600 hover:bg-blue-700"
+            disabled={doc.isApproved !== null}
+          >
+            <Vote className="h-4 w-4 mr-1" />
+            {doc.isApproved !== null ? 'Votado' : 'Votar'}
+          </Button>
+        )}
+        {hasOrdemAction && (
+          <Button
+            size="sm"
+            className="bg-purple-600 hover:bg-purple-700"
+            onClick={() => handleMoveToOrdemDoDia(doc.id, doc.title)}
+          >
+            <ArrowRight className="h-4 w-4 mr-1" />
+            Para Ordem do Dia
+          </Button>
+        )}
+        {activePhaseKey === 'ORDEM_DO_DIA' && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleRemoveFromOrdemDoDia(doc.id, doc.title)}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Remover
+          </Button>
+        )}
+        <Button variant="outline" size="sm" onClick={() => handleEditDocument(doc)}>
+          <Edit className="h-4 w-4 mr-1" />
+          Editar
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-red-600 hover:text-red-700"
+          onClick={() => handleDeleteDocument(doc.id, doc.title)}
+        >
+          <Trash2 className="h-4 w-4 mr-1" />
+          Excluir
+        </Button>
+      </>
+    )
+  }
 
   const renderSidebar = ({
     collapsed,
@@ -3289,7 +3791,7 @@ export function AdminDashboard() {
                       <div key={doc.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg">
                         <div className="min-w-0">
                           <h5 className="font-medium">{doc.title}</h5>
-                          <p className="text-sm text-gray-600">{doc.type} - {doc.author || 'Autor não informado'}</p>
+                          <p className="text-sm text-gray-600">{getDocumentTypeLabel(doc.type)} - {doc.author || 'Autor não informado'}</p>
                         </div>
                         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                           {readingDocument === doc.id ? (
@@ -3512,7 +4014,7 @@ export function AdminDashboard() {
                   <Play className="h-5 w-5 text-green-600" />
                   Controle das Fases da Sessão
                 </CardTitle>
-                <p className="text-sm text-gray-500 mt-1">Clique para iniciar a fase e abrir sua gestão</p>
+                <p className="text-sm text-gray-500 mt-1">Clique para iniciar a fase e ver seus documentos aqui mesmo</p>
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -3524,7 +4026,7 @@ export function AdminDashboard() {
                     return (
                       <div
                         key={phase.id}
-                        onClick={() => startPhase(isClosedKey ? 'CLOSED' : phase.name, !isClosedKey)}
+                        onClick={() => startPhase(isClosedKey ? 'CLOSED' : phase.name, false)}
                         className={`h-24 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
                           isActivePhase
                             ? 'border-opacity-100'
@@ -3562,6 +4064,67 @@ export function AdminDashboard() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Documentos da fase em foco */}
+            {activePhaseKey && PHASE_DOCUMENT_FILTERS[activePhaseKey] && (
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-blue-600" />
+                        Documentos — {getPhaseTitle(activePhaseKey)}
+                      </CardTitle>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Gerencie os documentos desta fase sem sair do Controle Principal da Sessão.
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPhaseManagement(activePhaseKey)}
+                    >
+                      <ArrowRight className="h-4 w-4 mr-1" />
+                      Abrir gestão completa
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {activePhaseDocuments.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 border border-dashed rounded-md">
+                      Nenhum documento cadastrado nesta fase.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {activePhaseDocuments.map((doc: any) => (
+                        <div
+                          key={doc.id}
+                          className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg"
+                        >
+                          <div className="min-w-0">
+                            <h4 className="font-medium">{doc.title}</h4>
+                            <p className="text-sm text-gray-600">
+                              {getDocumentTypeLabel(doc.type)}
+                              {doc.author && ` · Autor: ${doc.author}`}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
+                            {renderDocumentActions(doc)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="pt-4 border-t mt-6">
+                    <Button onClick={() => handleAddDocument(activePhaseKey)}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Adicionar Documento
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Histórico de Fases */}
             {currentSession && (
@@ -3834,7 +4397,7 @@ export function AdminDashboard() {
                     <div key={doc.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg">
                       <div className="min-w-0">
                         <h4 className="font-medium">{doc.title}</h4>
-                        <p className="text-sm text-gray-600">{doc.type}</p>
+                        <p className="text-sm text-gray-600">{getDocumentTypeLabel(doc.type)}</p>
                       </div>
                       <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
                         <Button 
@@ -3901,6 +4464,23 @@ export function AdminDashboard() {
                           <ArrowRight className="h-4 w-4 mr-1" />
                           Para Ordem do Dia
                         </Button>
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditDocument(doc)}
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Editar
+                        </Button>
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700"
+                          onClick={() => handleDeleteDocument(doc.id, doc.title)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Excluir
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -3932,7 +4512,7 @@ export function AdminDashboard() {
                     <div key={doc.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg">
                       <div className="min-w-0">
                         <h4 className="font-medium">{doc.title}</h4>
-                        <p className="text-sm text-gray-600">{doc.type}</p>
+                        <p className="text-sm text-gray-600">{getDocumentTypeLabel(doc.type)}</p>
                       </div>
                       <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
                         <Button 
@@ -4000,6 +4580,23 @@ export function AdminDashboard() {
                           <ArrowRight className="h-4 w-4 mr-1" />
                           Para Ordem do Dia
                         </Button>
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditDocument(doc)}
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Editar
+                        </Button>
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700"
+                          onClick={() => handleDeleteDocument(doc.id, doc.title)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Excluir
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -4041,7 +4638,7 @@ export function AdminDashboard() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <h4 className="font-medium">{doc.title}</h4>
-                            <Badge className="bg-red-600">{doc.type}</Badge>
+                            <Badge className="bg-red-600">{getDocumentTypeLabel(doc.type)}</Badge>
                           </div>
                           <p className="text-sm text-gray-600">
                             {doc.author && `Autor: ${doc.author}`}
@@ -4121,6 +4718,23 @@ export function AdminDashboard() {
                             <Trash2 className="h-4 w-4 mr-1" />
                             Remover
                           </Button>
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditDocument(doc)}
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Editar
+                          </Button>
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => handleDeleteDocument(doc.id, doc.title)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Excluir
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -4174,15 +4788,29 @@ export function AdminDashboard() {
           {activeTab === 'fases' && <div className="space-y-6">
             <FasesTab />
           </div>}
+
+          {/* GESTÃO DE TIPOS DE DOCUMENTO */}
+          {activeTab === 'tipos-documento' && <div className="space-y-6">
+            <DocumentTypesTab />
+          </div>}
           </main>
         </div>
         </div>
         
         {/* Modal para Adicionar Documentos */}
-        <Dialog open={isAddDocumentOpen} onOpenChange={setIsAddDocumentOpen}>
+        <Dialog
+          open={isAddDocumentOpen}
+          onOpenChange={(open) => {
+            if (open) {
+              setIsAddDocumentOpen(true)
+            } else {
+              resetDocumentForm()
+            }
+          }}
+        >
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Adicionar Novo Documento</DialogTitle>
+              <DialogTitle>{editingDocumentId ? 'Editar Documento' : 'Adicionar Novo Documento'}</DialogTitle>
             </DialogHeader>
             
             <div className="space-y-4">
@@ -4192,6 +4820,7 @@ export function AdminDashboard() {
                 <Select
                   value={documentForm.sessionId}
                   onValueChange={(value) => setDocumentForm({...documentForm, sessionId: value})}
+                  disabled={Boolean(editingDocumentId)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione a sessão" />
@@ -4224,36 +4853,25 @@ export function AdminDashboard() {
               {/* Tipo de Documento */}
               <div>
                 <label className="text-sm font-medium block mb-1">Tipo de Documento *</label>
-                {documentPhase === 'PEQUENO_EXPEDIENTE' ? (
-                  <Input
-                    value={documentForm.type}
-                    onChange={(e) => setDocumentForm({...documentForm, type: e.target.value})}
-                    placeholder="Digite o tipo do documento (ex: Ata, Leitura de Ofício)"
-                    className="w-full"
-                  />
-                ) : (
-                  <Select 
-                    value={documentForm.type} 
-                    onValueChange={(value) => setDocumentForm({...documentForm, type: value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {documentPhase === 'GRANDE_EXPEDIENTE' && (
-                        <>
-                          <SelectItem value="REQUERIMENTO">Requerimento</SelectItem>
-                          <SelectItem value="PROJETO">Projeto</SelectItem>
-                        </>
-                      )}
-                      {documentPhase === 'ORDEM_DO_DIA' && (
-                        <>
-                          <SelectItem value="PROJETO">Projeto</SelectItem>
-                          <SelectItem value="REQUERIMENTO">Requerimento</SelectItem>
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
+                <Select
+                  value={documentForm.type}
+                  onValueChange={(value) => setDocumentForm({...documentForm, type: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getAvailableDocumentTypes().map((type) => (
+                      <SelectItem key={type.id} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {getAvailableDocumentTypes().length === 0 && (
+                  <p className="mt-1 text-xs text-red-500">
+                    Nenhum tipo ativo cadastrado. Cadastre em &quot;Tipos de Docs&quot;.
+                  </p>
                 )}
               </div>
               
@@ -4344,36 +4962,12 @@ export function AdminDashboard() {
                 </p>
               </div>
 
-              <div>
-                <label className="text-sm font-medium block mb-1">Anexo em PDF (opcional)</label>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <label className="cursor-pointer">
-                    <input
-                      type="file"
-                      accept="application/pdf"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file) {
-                          handleDocumentPdfUpload(file)
-                          e.currentTarget.value = ''
-                        }
-                      }}
-                    />
-                    <Button type="button" variant="outline" disabled={uploadingDocumentPdf} asChild>
-                      <span>
-                        {uploadingDocumentPdf ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                          <Upload className="h-4 w-4 mr-2" />
-                        )}
-                        Enviar PDF
-                      </span>
-                    </Button>
-                  </label>
-                  {documentForm.attachmentName ? (
+              {editingDocumentId ? (
+                documentForm.attachmentUrl && (
+                  <div>
+                    <label className="text-sm font-medium block mb-1">Anexo em PDF</label>
                     <div className="flex flex-wrap items-center gap-2 text-sm text-green-700">
-                      <span>{documentForm.attachmentName}</span>
+                      <span>{documentForm.attachmentName || 'PDF anexado'}</span>
                       <Button
                         type="button"
                         variant="ghost"
@@ -4383,28 +4977,75 @@ export function AdminDashboard() {
                         <ExternalLink className="h-4 w-4 mr-1" />
                         Abrir
                       </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDocumentForm({
-                          ...documentForm,
-                          attachmentName: '',
-                          attachmentPath: '',
-                          attachmentUrl: '',
-                          attachmentMimeType: ''
-                        })}
-                      >
-                        Remover
-                      </Button>
                     </div>
-                  ) : (
-                    <p className="text-xs text-gray-500">
-                      Anexe o arquivo oficial em PDF para consulta dos vereadores na sessão atual.
+                    <p className="mt-1 text-xs text-gray-500">
+                      O anexo não pode ser alterado durante a edição.
                     </p>
-                  )}
+                  </div>
+                )
+              ) : (
+                <div>
+                  <label className="text-sm font-medium block mb-1">Anexo em PDF (opcional)</label>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) {
+                            handleDocumentPdfUpload(file)
+                            e.currentTarget.value = ''
+                          }
+                        }}
+                      />
+                      <Button type="button" variant="outline" disabled={uploadingDocumentPdf} asChild>
+                        <span>
+                          {uploadingDocumentPdf ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="h-4 w-4 mr-2" />
+                          )}
+                          Enviar PDF
+                        </span>
+                      </Button>
+                    </label>
+                    {documentForm.attachmentName ? (
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-green-700">
+                        <span>{documentForm.attachmentName}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => window.open(documentForm.attachmentUrl, '_blank', 'noopener,noreferrer')}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-1" />
+                          Abrir
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDocumentForm({
+                            ...documentForm,
+                            attachmentName: '',
+                            attachmentPath: '',
+                            attachmentUrl: '',
+                            attachmentMimeType: ''
+                          })}
+                        >
+                          Remover
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500">
+                        Anexe o arquivo oficial em PDF para consulta dos vereadores na sessão atual.
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
               
               {/* Fase (somente leitura) */}
               <div>
@@ -4423,8 +5064,17 @@ export function AdminDashboard() {
                 onClick={handleSaveDocument}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                <Plus className="h-4 w-4 mr-1" />
-                Salvar Documento
+                {editingDocumentId ? (
+                  <>
+                    <Save className="h-4 w-4 mr-1" />
+                    Salvar Alterações
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Salvar Documento
+                  </>
+                )}
               </Button>
               <Button 
                 variant="outline"

@@ -163,6 +163,8 @@ export async function GET() {
       date: currentSession.date,
       status: currentSession.status,
       currentPhase: currentSession.currentPhase,
+      isAttendanceOpen: currentSession.isAttendanceOpen,
+      isSpeechRequestsOpen: currentSession.isSpeechRequestsOpen,
       currentDocument,
       currentVoting,
       timer

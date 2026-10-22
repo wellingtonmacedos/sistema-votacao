@@ -16,6 +16,7 @@ async function main() {
   // Limpar dados existentes (cuidado em produção!)
   try {
     await prisma.legislativeProcess.deleteMany()
+    await prisma.documentType.deleteMany()
     await prisma.documentVote.deleteMany()
     await prisma.vote.deleteMany()
     await prisma.speechRequest.deleteMany()
@@ -153,7 +154,35 @@ async function main() {
   })
   console.log('🔧 Conta de teste criada')
 
-  // 5. Criar uma sessão de exemplo (agendada para demonstração)
+  // 5. Criar tipos padrão de documentos por fase
+  await prisma.documentType.createMany({
+    data: [
+      { label: 'Ata Anterior', value: 'ATA_ANTERIOR', orderIndex: 0, isActive: true },
+      { label: 'Dispensa de Ata', value: 'DISPENSA_ATA', orderIndex: 1, isActive: true },
+      { label: 'Comunicado', value: 'COMUNICADO', orderIndex: 2, isActive: true },
+      { label: 'Ofício', value: 'OFICIO', orderIndex: 3, isActive: true },
+      { label: 'Requerimento', value: 'REQUERIMENTO', orderIndex: 4, isActive: true },
+      { label: 'Projeto', value: 'PROJETO', orderIndex: 5, isActive: true },
+      { label: 'Indicação', value: 'INDICACAO', orderIndex: 6, isActive: true },
+      { label: 'Moção', value: 'MOCAO', orderIndex: 7, isActive: true }
+    ]
+  })
+  console.log('🗂️ Tipos de documento padrão criados')
+
+  // 6. Criar fases padrão da sessão
+  await prisma.phase.createMany({
+    data: [
+      { name: 'Pequeno Expediente', orderIndex: 0, color: '#eab308', isActive: true, isDefault: true, hasVoting: false },
+      { name: 'Grande Expediente', orderIndex: 1, color: '#f97316', isActive: true, isDefault: true, hasVoting: false },
+      { name: 'Ordem do Dia', orderIndex: 2, color: '#8b5cf6', isActive: true, isDefault: true, hasVoting: true },
+      { name: 'Considerações Finais', orderIndex: 3, color: '#6366f1', isActive: true, isDefault: true, hasVoting: false },
+      { name: 'Tribuna Livre', orderIndex: 4, color: '#ec4899', isActive: true, isDefault: true, hasVoting: false },
+      { name: 'Encerrada', orderIndex: 5, color: '#6b7280', isActive: true, isDefault: true, hasVoting: false }
+    ]
+  })
+  console.log('🧭 Fases padrão criadas')
+
+  // 7. Criar uma sessão de exemplo (agendada para demonstração)
   const exampleSession = await prisma.votingSession.create({
     data: {
       title: 'Sessão Ordinária de Demonstração',
@@ -168,7 +197,7 @@ async function main() {
   })
   console.log('📅 Sessão de exemplo criada')
 
-  // 6. Criar pautas de exemplo
+  // 8. Criar pautas de exemplo
   const exampleMatters = [
     {
       title: 'Aprovação do Orçamento Municipal 2024',
@@ -208,7 +237,7 @@ async function main() {
   }
   console.log(`📋 ${createdMatters.length} Pautas de exemplo criadas`)
 
-  // 7. Criar documentos de exemplo para diferentes fases da sessão
+  // 9. Criar documentos de exemplo para diferentes fases da sessão
   const exampleDocuments = [
     {
       title: 'Ata da Sessão Anterior - 15/09/2024',

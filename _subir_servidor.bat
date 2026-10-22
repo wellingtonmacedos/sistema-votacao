@@ -15,11 +15,6 @@ if not exist "%APPDATA%\npm" mkdir "%APPDATA%\npm" 2>nul
 echo === Limpando zumbis porta 3000 ===
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr /R /C:":3000.*LISTENING"') do taskkill /F /PID %%a >nul 2>&1
 
-if exist .next (
-  echo === Removendo cache .next ===
-  rmdir /S /Q .next 2>nul
-)
-
 echo.
 echo ============================================================
 echo   SISTEMA DE VOTACAO - Subindo servidor

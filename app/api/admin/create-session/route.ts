@@ -12,6 +12,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
+    const actingUser = await prisma.user.findFirst({
+      where: {
+        isActive: true,
+        role: session.user.role === 'PRESIDENT' ? 'PRESIDENT' : 'ADMIN',
+        OR: [
+          ...(session.user.id ? [{ id: session.user.id }] : []),
+          ...(session.user.email ? [{ email: session.user.email }] : [])
+        ]
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!actingUser) {
+      return NextResponse.json({ error: "Sessão inválida. Entre novamente no sistema." }, { status: 401 });
+    }
+
     const { title, date, sessionNumber } = await request.json();
 
     // Verificar se já existe uma sessão ativa
@@ -52,9 +70,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Obter ID do usuário logado
-    const userId = session.user.id;
-    
     // Criar a nova sessão
     const sessionDate = date ? new Date(date) : new Date();
     const newSession = await prisma.votingSession.create({
@@ -64,7 +79,7 @@ export async function POST(request: NextRequest) {
         date: sessionDate,
         scheduledAt: sessionDate,
         status: 'SCHEDULED',
-        createdBy: userId
+        createdBy: actingUser.id
       }
     });
 

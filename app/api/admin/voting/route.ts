@@ -4,6 +4,66 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
+async function hasPendingPresidentTieBreak(sessionId: string, type: 'matter' | 'document', itemId: string) {
+  const presidentAttendance = await prisma.attendance.findFirst({
+    where: {
+      sessionId,
+      isPresent: true,
+      user: {
+        role: 'PRESIDENT'
+      }
+    }
+  })
+
+  if (!presidentAttendance) {
+    return false
+  }
+
+  const presentCouncilors = await prisma.attendance.count({
+    where: {
+      sessionId,
+      isPresent: true,
+      user: {
+        role: 'COUNCILOR'
+      }
+    }
+  })
+
+  const votes = type === 'matter'
+    ? await prisma.vote.findMany({
+        where: { matterId: itemId },
+        include: {
+          user: {
+            select: {
+              role: true
+            }
+          }
+        }
+      })
+    : await prisma.documentVote.findMany({
+        where: { documentId: itemId },
+        include: {
+          user: {
+            select: {
+              role: true
+            }
+          }
+        }
+      })
+
+  const councilorVotes = votes.filter((vote) => vote.user.role === 'COUNCILOR')
+  const presidentVote = votes.find((vote) => vote.user.role === 'PRESIDENT')
+
+  if (presidentVote || presentCouncilors === 0 || councilorVotes.length < presentCouncilors) {
+    return false
+  }
+
+  const yesVotes = councilorVotes.filter((vote) => vote.voteType === 'YES').length
+  const noVotes = councilorVotes.filter((vote) => vote.voteType === 'NO').length
+
+  return yesVotes === noVotes
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -115,6 +175,20 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Matéria não encontrada' }, { status: 404 })
         }
 
+        const matterSession = await prisma.sessionMatter.findFirst({
+          where: { matterId: itemId },
+          select: { sessionId: true }
+        })
+
+        if (!matterSession) {
+          return NextResponse.json({ error: 'Sessão da matéria não encontrada' }, { status: 404 })
+        }
+
+        const pendingPresidentTieBreak = await hasPendingPresidentTieBreak(matterSession.sessionId, 'matter', itemId)
+        if (pendingPresidentTieBreak) {
+          return NextResponse.json({ error: 'Empate detectado. Aguarde o voto de desempate do presidente antes de encerrar a votação.' }, { status: 400 })
+        }
+
         // Calcular resultado
         const yesVotes = matter.votes.filter((v) => v.voteType === 'YES').length
         const noVotes = matter.votes.filter((v) => v.voteType === 'NO').length
@@ -157,6 +231,11 @@ export async function POST(request: NextRequest) {
 
         if (!document) {
           return NextResponse.json({ error: 'Documento não encontrado' }, { status: 404 })
+        }
+
+        const pendingPresidentTieBreak = await hasPendingPresidentTieBreak(document.sessionId, 'document', itemId)
+        if (pendingPresidentTieBreak) {
+          return NextResponse.json({ error: 'Empate detectado. Aguarde o voto de desempate do presidente antes de encerrar a votação.' }, { status: 400 })
         }
 
         // Calcular resultado

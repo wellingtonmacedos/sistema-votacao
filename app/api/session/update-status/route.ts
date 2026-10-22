@@ -4,16 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { Prisma } from '@prisma/client'
-
-const VALID_STATUSES = [
-  'SCHEDULED',
-  'PEQUENO_EXPEDIENTE',
-  'GRANDE_EXPEDIENTE',
-  'ORDEM_DO_DIA',
-  'CONSIDERACOES_FINAIS',
-  'TRIBUNA_LIVE',
-  'CLOSED'
-]
+import { toPhaseStatusKey } from '@/lib/phase-utils'
 
 export async function POST(request: Request) {
   try {
@@ -46,7 +37,9 @@ export async function POST(request: Request) {
     }
 
     const now = new Date()
-    const isStandardStatus = VALID_STATUSES.includes(status)
+    const mappedStatus = toPhaseStatusKey(status)
+    const isStandardStatus = mappedStatus !== null
+    const isClosed = mappedStatus === 'CLOSED'
 
     if (currentSession.currentPhase !== status) {
       // Fechar a fase atual aberta
@@ -67,7 +60,6 @@ export async function POST(request: Request) {
         orderBy: { startedAt: 'desc' }
       })
 
-      const isClosed = status === 'CLOSED'
       if (!targetPhaseExisting || targetPhaseExisting.endedAt !== null) {
         await prisma.sessionPhase.create({
           data: {
@@ -88,13 +80,13 @@ export async function POST(request: Request) {
     // Atualizar sessão
     const updateData: Prisma.VotingSessionUpdateInput = {
       currentPhase: status,
-      startedAt: status !== 'SCHEDULED' && !currentSession.startedAt ? now : currentSession.startedAt,
-      endedAt: status === 'CLOSED' ? now : null
+      startedAt: mappedStatus !== 'SCHEDULED' && !currentSession.startedAt ? now : currentSession.startedAt,
+      endedAt: isClosed ? now : null
     }
 
-    // Só atualiza o enum status se for um status padrão válido
-    if (isStandardStatus) {
-      updateData.status = status
+    // Só atualiza o enum status se o valor corresponder a um status padrão
+    if (isStandardStatus && mappedStatus) {
+      updateData.status = mappedStatus as Prisma.VotingSessionUpdateInput['status']
     }
 
     await prisma.votingSession.update({

@@ -53,6 +53,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
 
+    const actingUser = await prisma.user.findFirst({
+      where: {
+        isActive: true,
+        role: 'ADMIN',
+        OR: [
+          ...(session.user.id ? [{ id: session.user.id }] : []),
+          ...(session.user.email ? [{ email: session.user.email }] : [])
+        ]
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!actingUser) {
+      return NextResponse.json({ error: "Sessão inválida. Entre novamente no sistema." }, { status: 401 });
+    }
+
     const body = await request.json();
     const { title, description, scheduledAt, sessionNumber, quorum } = body;
 
@@ -87,7 +105,7 @@ export async function POST(request: NextRequest) {
         date: new Date(scheduledAt),
         sessionNumber: finalSessionNumber, // String
         quorum: quorum || 7,
-        createdBy: session.user.id,
+        createdBy: actingUser.id,
         status: 'SCHEDULED'
       },
       include: {

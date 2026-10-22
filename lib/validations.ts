@@ -39,6 +39,32 @@ export const updatePhaseSchema = z.object({
   hasVoting: z.boolean().optional(),
 });
 
+export const createDocumentTypeSchema = z.object({
+  label: z.string().trim().min(1, "Nome de exibição é obrigatório").max(100),
+  value: z
+    .string()
+    .trim()
+    .min(1, "Código do tipo é obrigatório")
+    .max(60)
+    .regex(/^[A-Z0-9_]+$/, "Use apenas letras maiúsculas, números e underscore"),
+  orderIndex: z.number().int().min(0).optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const updateDocumentTypeSchema = z.object({
+  id: z.string().min(1, "ID é obrigatório"),
+  label: z.string().trim().min(1, "Nome de exibição é obrigatório").max(100).optional(),
+  value: z
+    .string()
+    .trim()
+    .min(1, "Código do tipo é obrigatório")
+    .max(60)
+    .regex(/^[A-Z0-9_]+$/, "Use apenas letras maiúsculas, números e underscore")
+    .optional(),
+  orderIndex: z.number().int().min(0).optional(),
+  isActive: z.boolean().optional(),
+});
+
 export const voteSchema = z.object({
   type: z.enum(["matter", "document"]),
   itemId: z.string().min(1, "itemId é obrigatório"),
@@ -52,6 +78,29 @@ export const attendanceRegisterSchema = z.object({
 export const sessionControlSchema = z.object({
   action: z.enum(["start", "end"]),
   sessionId: z.string().min(1, "sessionId é obrigatório"),
+});
+
+export const sessionScriptItemInputSchema = z.object({
+  id: z.string().min(1, "ID inválido").optional(),
+  sectionTitle: z
+    .string()
+    .trim()
+    .max(200, "Título da seção deve ter no máximo 200 caracteres")
+    .optional()
+    .transform((value) => value || undefined),
+  content: z.string().trim().min(1, "O item do roteiro é obrigatório").max(2000, "O item do roteiro deve ter no máximo 2000 caracteres"),
+  orderIndex: z.number().int().min(0).optional(),
+});
+
+export const saveSessionScriptSchema = z.object({
+  sessionId: z.string().min(1, "sessionId é obrigatório"),
+  items: z.array(sessionScriptItemInputSchema).max(300, "Limite de 300 itens por roteiro"),
+});
+
+export const updateSessionScriptProgressSchema = z.object({
+  itemId: z.string().min(1, "itemId é obrigatório"),
+  isCompleted: z.boolean().optional(),
+  presidentNotes: z.string().max(5000, "As notas devem ter no máximo 5000 caracteres").nullable().optional(),
 });
 
 export const createSpeechRequestSchema = z.object({

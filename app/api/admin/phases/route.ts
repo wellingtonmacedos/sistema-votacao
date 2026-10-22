@@ -5,6 +5,31 @@ import { prisma } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { parseBody, createPhaseSchema, updatePhaseSchema, ValidationError } from '@/lib/validations'
 
+const DEFAULT_PHASES = [
+  { name: 'Pequeno Expediente', orderIndex: 0, color: '#eab308', hasVoting: false },
+  { name: 'Grande Expediente', orderIndex: 1, color: '#f97316', hasVoting: false },
+  { name: 'Ordem do Dia', orderIndex: 2, color: '#8b5cf6', hasVoting: true },
+  { name: 'Considerações Finais', orderIndex: 3, color: '#6366f1', hasVoting: false },
+  { name: 'Tribuna Livre', orderIndex: 4, color: '#ec4899', hasVoting: false },
+  { name: 'Encerrada', orderIndex: 5, color: '#6b7280', hasVoting: false }
+]
+
+async function ensureDefaultPhases() {
+  const count = await prisma.phase.count()
+
+  if (count > 0) {
+    return
+  }
+
+  await prisma.phase.createMany({
+    data: DEFAULT_PHASES.map((phase) => ({
+      ...phase,
+      isActive: true,
+      isDefault: true
+    }))
+  })
+}
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
@@ -15,6 +40,8 @@ export async function GET() {
     if (session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
+
+    await ensureDefaultPhases()
 
     const phases = await prisma.phase.findMany({
       orderBy: [{ orderIndex: 'asc' }, { createdAt: 'asc' }]

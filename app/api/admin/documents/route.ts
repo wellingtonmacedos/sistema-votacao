@@ -15,6 +15,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
+    const actingUser = await prisma.user.findFirst({
+      where: {
+        isActive: true,
+        role: 'ADMIN',
+        OR: [
+          ...(session.user.id ? [{ id: session.user.id }] : []),
+          ...(session.user.email ? [{ email: session.user.email }] : [])
+        ]
+      },
+      select: {
+        id: true
+      }
+    })
+
+    if (!actingUser) {
+      return NextResponse.json({
+        error: 'Sessão inválida. Entre novamente no sistema.'
+      }, { status: 401 })
+    }
+
     const data = await request.json()
     const {
       title,
@@ -86,12 +106,33 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    const normalizedPhase = typeof phase === 'string' && phase.trim()
+      ? phase.trim()
+      : 'PEQUENO_EXPEDIENTE'
+    const normalizedType = typeof type === 'string' ? type.trim().toUpperCase() : ''
+
+    const existingDocumentType = await prisma.documentType.findFirst({
+      where: {
+        value: normalizedType,
+        isActive: true
+      },
+      select: {
+        id: true
+      }
+    })
+
+    if (!existingDocumentType) {
+      return NextResponse.json({
+        error: 'Tipo de documento inválido ou inativo'
+      }, { status: 400 })
+    }
+
     // Criar o documento
     const document = await prisma.document.create({
       data: {
         title,
-        type,
-        phase: phase || 'PEQUENO_EXPEDIENTE',
+        type: normalizedType,
+        phase: normalizedPhase,
         content: trimmedContent || null,
         attachmentName: hasAttachment ? attachmentName : null,
         attachmentPath: hasAttachment ? attachmentPath : null,
@@ -99,7 +140,7 @@ export async function POST(request: NextRequest) {
         attachmentMimeType: hasAttachment ? attachmentMimeType : null,
         author: author || null,
         sessionId,
-        createdBy: session.user.id,
+        createdBy: actingUser.id,
         createdAt: new Date()
       },
       include: {
@@ -170,6 +211,105 @@ export async function GET(request: NextRequest) {
     console.error('❌ Erro ao buscar documentos:', error)
     return NextResponse.json({ 
       error: 'Erro interno do servidor ao buscar documentos' 
+    }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+
+    // Verificar se é admin
+    if (!session?.user || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
+
+    const data = await request.json()
+    const { id, title, type, content, author } = data
+
+    if (!id) {
+      return NextResponse.json({
+        error: 'ID do documento é obrigatório'
+      }, { status: 400 })
+    }
+
+    if (!title || !type) {
+      return NextResponse.json({
+        error: 'Campos obrigatórios: title e type'
+      }, { status: 400 })
+    }
+
+    const existingDocument = await prisma.document.findUnique({
+      where: { id }
+    })
+
+    if (!existingDocument) {
+      return NextResponse.json({
+        error: 'Documento não encontrado'
+      }, { status: 404 })
+    }
+
+    // Regra de Negócio: documentos de sessão encerrada não podem ser editados
+    const documentSession = await prisma.votingSession.findUnique({
+      where: { id: existingDocument.sessionId }
+    })
+
+    if (documentSession?.status === 'CLOSED') {
+      return NextResponse.json({
+        error: 'Não é possível editar documentos de uma sessão encerrada'
+      }, { status: 400 })
+    }
+
+    const normalizedType = typeof type === 'string' ? type.trim().toUpperCase() : ''
+
+    const existingDocumentType = await prisma.documentType.findFirst({
+      where: {
+        value: normalizedType,
+        isActive: true
+      },
+      select: {
+        id: true
+      }
+    })
+
+    if (!existingDocumentType) {
+      return NextResponse.json({
+        error: 'Tipo de documento inválido ou inativo'
+      }, { status: 400 })
+    }
+
+    const trimmedContent = typeof content === 'string' ? content.trim() : ''
+
+    if (!trimmedContent && !existingDocument.attachmentUrl) {
+      return NextResponse.json({
+        error: 'Informe o conteúdo do documento ou mantenha um PDF anexado'
+      }, { status: 400 })
+    }
+
+    const document = await prisma.document.update({
+      where: { id },
+      data: {
+        title,
+        type: normalizedType,
+        content: trimmedContent || null,
+        author: author || null
+      }
+    })
+
+    return NextResponse.json({
+      message: 'Documento atualizado com sucesso',
+      document: {
+        id: document.id,
+        title: document.title,
+        type: document.type,
+        author: document.author
+      }
+    })
+
+  } catch (error) {
+    console.error('❌ Erro ao atualizar documento:', error)
+    return NextResponse.json({
+      error: 'Erro interno do servidor ao atualizar documento'
     }, { status: 500 })
   }
 }
