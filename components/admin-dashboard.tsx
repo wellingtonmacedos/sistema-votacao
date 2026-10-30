@@ -105,6 +105,10 @@ function ConsideracoesFinaisTab() {
   useEffect(() => {
     fetchData()
     fetchSessionStatus()
+    // Mantém o status da sessão atualizado enquanto a aba está aberta,
+    // evitando que o botão de inscrições fique com estado obsoleto.
+    const interval = setInterval(fetchSessionStatus, 5000)
+    return () => clearInterval(interval)
   }, [])
 
   const fetchSessionStatus = async () => {
@@ -285,6 +289,9 @@ function ConsideracoesFinaisTab() {
       if (response.ok) {
         toast.success(isOpen ? 'Inscrições abertas!' : 'Inscrições fechadas!')
         fetchSessionStatus()
+      } else {
+        const error = await response.json().catch(() => null)
+        toast.error(error?.error || 'Não foi possível atualizar as inscrições')
       }
     } catch (error) {
       toast.error('Erro ao gerenciar inscrições')
@@ -521,6 +528,10 @@ function TribunaLivreTab() {
   useEffect(() => {
     fetchData()
     fetchSessionStatus()
+    // Mantém o status da sessão atualizado enquanto a aba está aberta,
+    // evitando que o botão de inscrições fique com estado obsoleto.
+    const interval = setInterval(fetchSessionStatus, 5000)
+    return () => clearInterval(interval)
   }, [])
 
   const fetchSessionStatus = async () => {
@@ -703,6 +714,9 @@ function TribunaLivreTab() {
       if (response.ok) {
         toast.success(isOpen ? 'Inscrições abertas!' : 'Inscrições fechadas!')
         fetchSessionStatus()
+      } else {
+        const error = await response.json().catch(() => null)
+        toast.error(error?.error || 'Não foi possível atualizar as inscrições')
       }
     } catch (error) {
       toast.error('Erro ao gerenciar inscrições')
@@ -4064,6 +4078,40 @@ export function AdminDashboard() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Controle de Inscrições — Considerações Finais / Tribuna Livre */}
+            {(activePhaseKey === 'CONSIDERACOES_FINAIS' || activePhaseKey === 'TRIBUNA_LIVE') && (
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        {activePhaseKey === 'CONSIDERACOES_FINAIS' ? (
+                          <MessageSquare className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <Mic className="h-5 w-5 text-yellow-600" />
+                        )}
+                        {getPhaseTitle(activePhaseKey)} — Inscrições
+                      </CardTitle>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Abra, feche e gerencie os pronunciamentos desta fase sem sair do Controle Principal.
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPhaseManagement(activePhaseKey)}
+                    >
+                      <ArrowRight className="h-4 w-4 mr-1" />
+                      Abrir gestão completa
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {activePhaseKey === 'CONSIDERACOES_FINAIS' ? <ConsideracoesFinaisTab /> : <TribunaLivreTab />}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Documentos da fase em foco */}
             {activePhaseKey && PHASE_DOCUMENT_FILTERS[activePhaseKey] && (

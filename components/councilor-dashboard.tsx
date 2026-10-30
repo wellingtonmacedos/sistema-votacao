@@ -129,6 +129,8 @@ export function CouncilorDashboard() {
   const [speechLoading, setSpeechLoading] = useState(false)
   const [sessionDocuments, setSessionDocuments] = useState<SessionDocument[]>([])
   const [expandedDocumentIds, setExpandedDocumentIds] = useState<string[]>([])
+  // Seção de documentos recolhida por padrão para liberar espaço durante a sessão
+  const [documentsSectionOpen, setDocumentsSectionOpen] = useState(false)
   const [voteConfirmDialog, setVoteConfirmDialog] = useState<{
     open: boolean
     voteType: 'YES' | 'NO' | 'ABSTENTION' | null
@@ -647,23 +649,43 @@ export function CouncilorDashboard() {
         </Card>
 
         <Card className="mb-6 border border-gray-200 shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader
+            className="cursor-pointer select-none pb-3 transition-colors hover:bg-gray-50"
+            onClick={() => setDocumentsSectionOpen((open) => !open)}
+            role="button"
+            tabIndex={0}
+            aria-expanded={documentsSectionOpen}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                setDocumentsSectionOpen((open) => !open)
+              }
+            }}
+          >
             <div className="flex items-center justify-between gap-3">
-              <div>
+              <div className="min-w-0">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <FileText className="h-5 w-5 text-indigo-600" />
                   Documentos da Sessão
                 </CardTitle>
                 <CardDescription>
-                  Lista compacta dos documentos cadastrados nesta sessão.
+                  Documentos cadastrados nesta sessão.
                 </CardDescription>
               </div>
-              <Badge variant="outline">
-                {sessionDocuments.length} documento{sessionDocuments.length === 1 ? '' : 's'}
-              </Badge>
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge variant="outline">
+                  {sessionDocuments.length} documento{sessionDocuments.length === 1 ? '' : 's'}
+                </Badge>
+                {documentsSectionOpen ? (
+                  <ChevronUp className="h-5 w-5 text-gray-500" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-gray-500" />
+                )}
+              </div>
             </div>
           </CardHeader>
-          <CardContent>
+          {documentsSectionOpen && (
+          <CardContent className="pt-0">
             {sessionDocuments.length === 0 ? (
               <div className="text-center py-6 text-gray-500">
                 <FileText className="h-10 w-10 mx-auto mb-2 text-gray-300" />
@@ -671,65 +693,65 @@ export function CouncilorDashboard() {
                 <p className="text-sm">Os PDFs anexados pelo administrador aparecerão aqui para consulta.</p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {sessionDocuments.map((document) => (
-                  <div key={document.id} className="rounded-lg border border-gray-200 bg-white p-3">
-                    <div className="flex flex-col gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <h3 className="line-clamp-2 font-semibold text-gray-900">{document.title}</h3>
-                            <p className="mt-1 text-sm text-gray-600">
-                              {document.author ? `Autor: ${document.author}` : 'Autor não informado'} • {document.phase.replace(/_/g, ' ')}
-                            </p>
-                          </div>
-                          <Badge variant="outline">{document.type}</Badge>
-                        </div>
+                  <div key={document.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                    <div className="flex items-center gap-2 px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-gray-900" title={document.title}>
+                          {document.title}
+                        </p>
+                        <p className="truncate text-xs text-gray-500">
+                          {document.author ? `Autor: ${document.author} • ` : ''}
+                          {document.phase.replace(/_/g, ' ')}
+                        </p>
                       </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        {document.content && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => toggleDocumentExpanded(document.id)}
-                          >
-                            {expandedDocumentIds.includes(document.id) ? (
-                              <ChevronUp className="h-4 w-4 mr-2" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 mr-2" />
-                            )}
-                            {expandedDocumentIds.includes(document.id) ? 'Ocultar texto' : 'Ler resumo'}
-                          </Button>
-                        )}
-                        {document.attachmentUrl ? (
-                          <Button
-                            onClick={() => window.open(document.attachmentUrl!, '_blank', 'noopener,noreferrer')}
-                            variant="outline"
-                            size="sm"
-                          >
-                            <ExternalLink className="h-4 w-4 mr-2" />
-                            Abrir PDF
-                          </Button>
-                        ) : (
-                          <Badge variant="secondary" className="w-fit">
-                            Sem PDF
-                          </Badge>
-                        )}
-                      </div>
-
-                      {document.content && expandedDocumentIds.includes(document.id) && (
-                        <div className="rounded-md bg-gray-50 p-3 text-sm text-gray-700">
-                          {document.content}
-                        </div>
+                      <Badge variant="outline" className="shrink-0 text-xs">
+                        {document.type}
+                      </Badge>
+                      {document.content && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={() => toggleDocumentExpanded(document.id)}
+                          title={expandedDocumentIds.includes(document.id) ? 'Ocultar resumo' : 'Ler resumo'}
+                          aria-label={expandedDocumentIds.includes(document.id) ? 'Ocultar resumo' : 'Ler resumo'}
+                        >
+                          {expandedDocumentIds.includes(document.id) ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
+                      {document.attachmentUrl ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={() => window.open(document.attachmentUrl!, '_blank', 'noopener,noreferrer')}
+                          title="Abrir PDF"
+                          aria-label="Abrir PDF"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <span className="shrink-0 text-[11px] text-gray-400">Sem PDF</span>
                       )}
                     </div>
+                    {document.content && expandedDocumentIds.includes(document.id) && (
+                      <div className="border-t border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                        {document.content}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
           </CardContent>
+          )}
         </Card>
 
         {/* ============================================= */}

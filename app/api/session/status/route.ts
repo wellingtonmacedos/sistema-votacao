@@ -5,12 +5,18 @@ import { prisma } from "@/lib/db";
 // Buscar status da sessao ativa (incluindo status de inscricoes)
 export async function GET(request: NextRequest) {
   try {
+    // Mesma regra usada por /api/public/current-session e /api/councilor/status:
+    // qualquer sessão não encerrada, para não divergir da sessão exibida no admin.
     const currentSession = await prisma.votingSession.findFirst({
       where: {
         status: {
-          in: ['PEQUENO_EXPEDIENTE', 'GRANDE_EXPEDIENTE', 'ORDEM_DO_DIA', 'CONSIDERACOES_FINAIS', 'TRIBUNA_LIVE']
+          not: 'CLOSED'
         }
       },
+      orderBy: [
+        { date: 'desc' },
+        { createdAt: 'desc' }
+      ],
       select: {
         id: true,
         status: true,
