@@ -43,6 +43,48 @@ export async function GET() {
       }
     }
 
+    const resolveDocumentProponent = async (author: string | null | undefined, creator: { fullName: string; photoUrl: string | null }) => {
+      const normalizedAuthor = author?.trim()
+
+      if (!normalizedAuthor) {
+        return {
+          fullName: creator.fullName,
+          photoUrl: creator.photoUrl
+        }
+      }
+
+      const authorNames = normalizedAuthor
+        .split(',')
+        .map((name) => name.trim())
+        .filter(Boolean)
+
+      if (authorNames.length === 0) {
+        return {
+          fullName: creator.fullName,
+          photoUrl: creator.photoUrl
+        }
+      }
+
+      const matchedAuthors = await prisma.user.findMany({
+        where: {
+          fullName: { in: authorNames }
+        },
+        select: {
+          fullName: true,
+          photoUrl: true
+        }
+      })
+
+      const firstMatchedAuthor = authorNames
+        .map((name) => matchedAuthors.find((user) => user.fullName === name))
+        .find(Boolean)
+
+      return {
+        fullName: normalizedAuthor,
+        photoUrl: firstMatchedAuthor?.photoUrl || null
+      }
+    }
+
     // Preparar dados da votação atual
     let currentVoting = null
     
@@ -57,6 +99,12 @@ export async function GET() {
         }
       },
       include: {
+        creator: {
+          select: {
+            fullName: true,
+            photoUrl: true
+          }
+        },
         votes: {
           include: {
             user: true
@@ -83,6 +131,10 @@ export async function GET() {
         id: votingMatter.id,
         title: votingMatter.title,
         description: votingMatter.description,
+        proponent: {
+          fullName: votingMatter.creator.fullName,
+          photoUrl: votingMatter.creator.photoUrl
+        },
         votes: {
           yes: yesVotes,
           no: noVotes,
@@ -99,6 +151,12 @@ export async function GET() {
           isVoting: true
         },
         include: {
+          creator: {
+            select: {
+              fullName: true,
+              photoUrl: true
+            }
+          },
           votes: {
             include: {
               user: true
@@ -109,6 +167,7 @@ export async function GET() {
       })
 
       if (votingDocument) {
+        const documentProponent = await resolveDocumentProponent(votingDocument.author, votingDocument.creator)
         const yesVotes = votingDocument.votes.filter((v) => v.voteType === 'YES').length
         const noVotes = votingDocument.votes.filter((v) => v.voteType === 'NO').length
         const abstentionVotes = votingDocument.votes.filter((v) => v.voteType === 'ABSTENTION').length
@@ -128,6 +187,7 @@ export async function GET() {
           description: votingDocument.description || '',
           documentType: votingDocument.type,
           author: votingDocument.author || '',
+          proponent: documentProponent,
           votes: {
             yes: yesVotes,
             no: noVotes,

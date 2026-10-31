@@ -23,6 +23,7 @@ interface SessionData {
     description: string
     documentType?: string
     author?: string
+    proponent?: ProponentData | null
     votes: {
       yes: number
       no: number
@@ -97,6 +98,74 @@ interface SpeechRequestData {
   orderIndex: number
 }
 
+interface ProponentData {
+  fullName: string
+  photoUrl: string | null
+}
+
+interface ReadingDocumentData {
+  id: string
+  title: string
+  type: string
+  content: string
+  author?: string | null
+  proponent?: ProponentData | null
+  creator?: ProponentData | null
+}
+
+const getInitials = (fullName: string) =>
+  fullName
+    .split(' ')
+    .filter(Boolean)
+    .map((name) => name[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
+function ProponentInfo({
+  proponent,
+  compact = false
+}: {
+  proponent?: ProponentData | null
+  compact?: boolean
+}) {
+  if (!proponent?.fullName) return null
+
+  if (compact) {
+    return (
+      <span className="text-xs text-white/70">
+        Proponente: <span className="font-medium text-white/90">{proponent.fullName}</span>
+      </span>
+    )
+  }
+
+  return (
+    <div className="inline-flex max-w-full items-center gap-3 rounded-xl border border-white/15 bg-white/10 px-3 py-2 backdrop-blur-sm">
+      <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full ring-2 ring-white/15">
+        {proponent.photoUrl ? (
+          <img
+            src={proponent.photoUrl}
+            alt={proponent.fullName}
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+              const fallback = e.currentTarget.nextElementSibling as HTMLElement | null
+              if (fallback) fallback.style.display = 'flex'
+            }}
+          />
+        ) : null}
+        <div className={`h-full w-full items-center justify-center bg-gradient-to-br from-cyan-500 to-blue-600 text-sm font-bold text-white ${proponent.photoUrl ? 'hidden' : 'flex'}`}>
+          {getInitials(proponent.fullName)}
+        </div>
+      </div>
+      <div className="min-w-0">
+        <div className="text-[10px] uppercase tracking-[0.2em] text-white/50">Proponente</div>
+        <div className="truncate text-sm font-semibold text-white">{proponent.fullName}</div>
+      </div>
+    </div>
+  )
+}
+
 export function PublicDisplayPanel() {
   const [sessionData, setSessionData] = useState<SessionData | null>(null)
   const [currentSpeaker, setCurrentSpeaker] = useState<CurrentSpeakerData | null>(null)
@@ -107,7 +176,7 @@ export function PublicDisplayPanel() {
   const [votingResult, setVotingResult] = useState<any>(null)
   const [lastUpdateTime, setLastUpdateTime] = useState(new Date())
   const [isUpdating, setIsUpdating] = useState(false)
-  const [readingDocument, setReadingDocument] = useState<any>(null)
+  const [readingDocument, setReadingDocument] = useState<ReadingDocumentData | null>(null)
   const [speechRequests, setSpeechRequests] = useState<SpeechRequestData[]>([])
   const [consideracoesFinais, setConsideracoesFinais] = useState<SpeechRequestData[]>([])
   const [tribunaLivre, setTribunaLivre] = useState<SpeechRequestData[]>([])
@@ -272,6 +341,21 @@ export function PublicDisplayPanel() {
   }
 
   const statusInfo = getStatusDisplay(sessionData.status)
+  const consideracoesFinaisSpeaking = consideracoesFinais.filter((request) => request.isSpeaking)
+  const hasActiveConsideracoesSpeaker = consideracoesFinaisSpeaking.length > 0
+  const consideracoesFinaisVisible = hasActiveConsideracoesSpeaker ? consideracoesFinaisSpeaking : consideracoesFinais
+  const readingDocumentProponent = readingDocument?.proponent
+    ? readingDocument.proponent
+    : readingDocument
+      ? {
+          fullName: readingDocument.author?.trim() || readingDocument.creator?.fullName || '',
+          photoUrl:
+            readingDocument.author?.trim() &&
+            readingDocument.author.trim() !== readingDocument.creator?.fullName
+              ? null
+              : readingDocument.creator?.photoUrl || null
+        }
+      : null
 
   // Se não houver sessão ativa
   if (!sessionData) {
@@ -541,10 +625,15 @@ export function PublicDisplayPanel() {
                         )}
                         {sessionData.currentVoting.author && (
                           <span className="text-xs text-white/60">
-                            Autor: {sessionData.currentVoting.author}
+                            Autor informado: {sessionData.currentVoting.author}
                           </span>
                         )}
                       </div>
+                      {sessionData.currentVoting.proponent && (
+                        <div className="mt-3">
+                          <ProponentInfo proponent={sessionData.currentVoting.proponent} />
+                        </div>
+                      )}
                     </div>
                   </div>
                   
@@ -778,7 +867,7 @@ export function PublicDisplayPanel() {
         {/* Inscrições para Fala - Considerações Finais */}
         {/* Oculta esta seção se houver pronunciamento ativo na Tribuna Livre */}
         {/* Mostra lista de inscritos se estiver na fase de considerações finais ou se houver alguém falando */}
-        {((sessionData.status === 'CONSIDERACOES_FINAIS') || consideracoesFinais.some(r => r.isSpeaking)) && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && !tribunaLivre.some(r => r.isSpeaking) && (
+        {((sessionData.status === 'CONSIDERACOES_FINAIS') || hasActiveConsideracoesSpeaker) && !(sessionData.currentVoting && sessionData.currentVoting.isActive) && !tribunaLivre.some(r => r.isSpeaking) && (
           <Card className="lg:col-span-2 bg-white/10 backdrop-blur-sm border-white/20">
             <CardContent className="p-6 h-full">
               <div className="relative mb-8">
@@ -794,7 +883,11 @@ export function PublicDisplayPanel() {
                         CONSIDERAÇÕES FINAIS
                       </h3>
                       <p className="text-lg text-purple-100/90 font-medium">
-                        {isSpeechRequestsOpen ? 'Inscrições abertas' : 'Lista de inscritos'}
+                        {hasActiveConsideracoesSpeaker
+                          ? 'Pronunciamento em andamento'
+                          : isSpeechRequestsOpen
+                            ? 'Inscrições abertas'
+                            : 'Lista de inscritos'}
                       </p>
                     </div>
                   </div>
@@ -809,17 +902,21 @@ export function PublicDisplayPanel() {
                       <div className={`w-3 h-3 rounded-full mr-3 ${
                         isSpeechRequestsOpen ? 'bg-white animate-pulse' : 'bg-white/80'
                       }`}></div>
-                      {isSpeechRequestsOpen ? '📝 INSCRIÇÕES ABERTAS' : '📋 LISTA DE INSCRITOS'}
+                      {hasActiveConsideracoesSpeaker
+                        ? '🎤 FALANDO AGORA'
+                        : isSpeechRequestsOpen
+                          ? '📝 INSCRIÇÕES ABERTAS'
+                          : '📋 LISTA DE INSCRITOS'}
                     </div>
                     
                     {/* Total de inscritos */}
                     <div className="mt-3">
                       <div className="text-right bg-white/10 px-4 py-2 rounded-xl backdrop-blur-sm border border-white/20">
                         <div className="text-2xl font-bold text-white">
-                          {consideracoesFinais.length}
+                          {hasActiveConsideracoesSpeaker ? consideracoesFinaisSpeaking.length : consideracoesFinais.length}
                         </div>
                         <div className="text-xs text-white/80 uppercase tracking-wide">
-                          TOTAL INSCRITOS
+                          {hasActiveConsideracoesSpeaker ? 'FALANDO AGORA' : 'TOTAL INSCRITOS'}
                         </div>
                       </div>
                     </div>
@@ -835,7 +932,7 @@ export function PublicDisplayPanel() {
                   </div>
                 ) : (
                 <div className="space-y-4 p-2">
-                  {consideracoesFinais.map((request, index) => {
+                  {consideracoesFinaisVisible.map((request, index) => {
                     // Determinar cores baseado no status
                     let cardColor = 'from-slate-600/20 via-gray-500/15 to-slate-500/10 border-gray-400/30'
                     let statusText = 'AGUARDANDO'
@@ -1304,12 +1401,12 @@ export function PublicDisplayPanel() {
                       <Badge variant="outline" className="border-yellow-400/50 text-yellow-400">
                         {readingDocument.type}
                       </Badge>
-                      {readingDocument.author && (
-                        <span className="text-white/70">
-                          Autor: {readingDocument.author}
-                        </span>
-                      )}
                     </div>
+                    {readingDocumentProponent?.fullName && (
+                      <div className="mt-3">
+                        <ProponentInfo proponent={readingDocumentProponent} />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1368,17 +1465,17 @@ export function PublicDisplayPanel() {
                           <Badge variant="outline" className="text-xs border-white/30 text-white/70">
                             {sessionData.currentVoting.documentType}
                           </Badge>
-                          {sessionData.currentVoting.author && (
-                            <span className="text-xs text-white/60">
-                              Autor: {sessionData.currentVoting.author}
-                            </span>
-                          )}
                         </div>
                       )}
                       {sessionData.currentVoting.type === 'matter' && (
                         <Badge variant="outline" className="text-xs border-white/30 text-white/70">
                           MATÉRIA
                         </Badge>
+                      )}
+                      {sessionData.currentVoting.proponent && (
+                        <div>
+                          <ProponentInfo proponent={sessionData.currentVoting.proponent} compact />
+                        </div>
                       )}
                     </div>
                   </div>

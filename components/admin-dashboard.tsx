@@ -1815,8 +1815,8 @@ function VereadoresTab() {
                   </Select>
                 </div>
 
-                {/* Campos específicos para vereadores */}
-                {formData.role === 'COUNCILOR' && (
+                {/* Campos específicos para vereadores e presidente */}
+                {(formData.role === 'COUNCILOR' || formData.role === 'PRESIDENT') && (
                   <>
                     <div className="border-t pt-4 mt-2">
                       <h4 className="text-sm font-semibold text-gray-700 mb-3">Informações do Vereador</h4>

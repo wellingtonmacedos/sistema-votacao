@@ -10,17 +10,14 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "react-hot-toast"
 import { getPhaseLabel } from "@/lib/phase-utils"
-import { 
-  Calendar,
+import {
   FileText,
   Play,
-  Square,
   Users,
   Vote,
   Clock,
   CheckCircle,
-  ListTodo,
-  AlertCircle
+  ListTodo
 } from "lucide-react"
 
 type CurrentVoting = {
@@ -314,33 +311,17 @@ export function PresidentDashboard() {
               <Badge className={currentSession.currentVoting?.isActive ? 'bg-purple-600' : 'bg-gray-500'}>
                 {currentSession.currentVoting?.isActive ? 'Votação em Andamento' : 'Sem Votação Ativa'}
               </Badge>
-              {attendance && (
-                <Badge variant="outline" className="bg-white">
-                  Presenças: {attendance.presentCount}/{attendance.totalCount}
+              {attendance?.isAttendanceOpen && presidentAttendance?.isPresent && (
+                <Badge className="bg-emerald-600">
+                  Presença do Presidente Registrada
                 </Badge>
-              )}
-              {attendance?.isAttendanceOpen && (
-                presidentAttendance?.isPresent ? (
-                  <Badge className="bg-emerald-600">
-                    Presença do Presidente Registrada
-                  </Badge>
-                ) : (
-                  <Button
-                    size="sm"
-                    onClick={handleMarkPresence}
-                    disabled={presenceLoading}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    {presenceLoading ? 'Registrando Presença...' : 'Registrar Minha Presença'}
-                  </Button>
-                )
               )}
             </div>
           )}
         </div>
 
         {/* Quick Stats */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid md:grid-cols-3 gap-4 mb-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
@@ -355,22 +336,24 @@ export function PresidentDashboard() {
               </p>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Sessões Este Mês
+                Presenças Registradas
               </CardTitle>
-              <Calendar className="h-4 w-4 text-blue-600" />
+              <CheckCircle className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{currentSession ? 1 : 0}</div>
+              <div className="text-2xl font-bold">
+                {attendance ? `${attendance.presentCount}/${attendance.totalCount}` : '0/0'}
+              </div>
               <p className="text-xs text-gray-600">
-                {currentSession?.sessionNumber || 'Nenhuma sessão ativa'}
+                Quórum mínimo: {attendance?.quorum ?? 7}
               </p>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
@@ -385,136 +368,64 @@ export function PresidentDashboard() {
               </p>
             </CardContent>
           </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Quórum Mínimo
-              </CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{attendance?.quorum ?? 7}</div>
-              <p className="text-xs text-gray-600">
-                {attendance ? `${attendance.presentCount} presentes neste momento` : 'Maioria simples da sessão'}
-              </p>
-            </CardContent>
-          </Card>
         </div>
 
-        {/* Main Actions */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className={`hover:shadow-md transition-shadow cursor-pointer ${currentSession ? '' : 'opacity-70'}`}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Play className={`h-5 w-5 ${currentSession ? 'text-green-600' : 'text-gray-400'}`} />
-                  Presidir Sessão
-                </CardTitle>
-                <Badge variant={currentSession ? 'default' : 'secondary'}>
-                  {currentSession ? phaseLabel : 'Aguardando'}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                {currentSession
-                  ? `Sessão sincronizada${attendance?.isAttendanceOpen ? ' com chamada aberta' : ''}${currentSession.currentVoting?.isActive ? ' e votação em andamento' : ''}.`
-                  : 'Presidir sessão ativa quando criada pelo Administrador'}
-              </p>
+        {/* Ações rápidas */}
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Ações Rápidas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <Button
-                className="w-full"
+                className="w-full justify-start"
                 variant={currentSession ? 'default' : 'secondary'}
                 disabled={!currentSession}
                 onClick={currentSession?.currentVoting?.isActive ? handleOpenVoting : handleManageMatters}
               >
+                <Play className="h-4 w-4 mr-2" />
                 {currentSession
                   ? currentSession.currentVoting?.isActive
                     ? 'Abrir Votação'
                     : 'Acompanhar Sessão'
                   : 'Nenhuma Sessão Ativa'}
               </Button>
-            </CardContent>
-          </Card>
-          
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                  Visualizar Pautas
-                </CardTitle>
-                <Badge variant="secondary">{pendingMattersCount} pauta{pendingMattersCount === 1 ? '' : 's'}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                Consultar pautas cadastradas pelo Administrador
-              </p>
-              <Button variant="outline" className="w-full" onClick={handleManageMatters}>
-                Ver Pautas
-              </Button>
-            </CardContent>
-          </Card>
 
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <ListTodo className="h-5 w-5 text-emerald-600" />
-                  Roteiro
-                </CardTitle>
-                <Badge variant="secondary">Sessão</Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                Seguir o roteiro cadastrado pelo administrador, marcando os itens realizados e registrando notas.
-              </p>
-              <Button variant="outline" className="w-full" onClick={handleViewScript}>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={handleManageMatters}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Ver Pautas
+                <Badge variant="secondary" className="ml-auto">
+                  {pendingMattersCount}
+                </Badge>
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={handleViewScript}
+              >
+                <ListTodo className="h-4 w-4 mr-2" />
                 Abrir Roteiro
               </Button>
-            </CardContent>
-          </Card>
-          
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Vote className="h-5 w-5 text-purple-600" />
-                  Histórico
-                </CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                Consultar sessões anteriores e resultados das votações
-              </p>
-              <Button variant="outline" className="w-full" onClick={handleViewHistory}>
+
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={handleViewHistory}
+              >
+                <Vote className="h-4 w-4 mr-2" />
                 Ver Histórico
               </Button>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        {currentSession?.currentVoting?.isActive && (
-          <Card className="mt-8 border-purple-200 bg-purple-50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-purple-900">
-                <AlertCircle className="h-5 w-5 text-purple-600" />
-                Votação Sincronizada
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-purple-800">
-                Há uma votação em andamento no sistema: <strong>{currentSession.currentVoting.title}</strong>.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {currentSession && (
-          <Card className={`mt-8 ${needsSpeechRequest ? 'border-green-300 bg-green-50' : 'border-gray-200'}`}>
+        {currentSession?.isSpeechRequestsOpen && (
+          <Card className={`mt-6 ${needsSpeechRequest ? 'border-green-300 bg-green-50' : 'border-gray-200'}`}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-green-600" />
@@ -525,11 +436,7 @@ export function PresidentDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {!currentSession.isSpeechRequestsOpen ? (
-                <p className="text-sm text-gray-600">
-                  As inscrições para Considerações Finais ainda não foram abertas.
-                </p>
-              ) : mySpeechRequests.length > 0 ? (
+              {mySpeechRequests.length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">Sua solicitação de fala:</p>
                   {mySpeechRequests.map((req) => (

@@ -32,15 +32,61 @@ export async function GET() {
         creator: {
           select: {
             fullName: true,
+            photoUrl: true,
             role: true
           }
         }
       }
     })
 
+    let proponent = null
+
+    if (readingDocument) {
+      const normalizedAuthor = readingDocument.author?.trim()
+      const authorNames = normalizedAuthor
+        ? normalizedAuthor
+            .split(',')
+            .map((name) => name.trim())
+            .filter(Boolean)
+        : []
+
+      if (authorNames.length > 0) {
+        const matchedAuthors = await prisma.user.findMany({
+          where: {
+            fullName: { in: authorNames }
+          },
+          select: {
+            fullName: true,
+            photoUrl: true
+          }
+        })
+
+        const firstMatchedAuthor = authorNames
+          .map((name) => matchedAuthors.find((user) => user.fullName === name))
+          .find(Boolean)
+
+        proponent = {
+          fullName: normalizedAuthor,
+          photoUrl: firstMatchedAuthor?.photoUrl || null
+        }
+      } else {
+        proponent = {
+          fullName: readingDocument.creator.fullName,
+          photoUrl: readingDocument.creator.photoUrl
+        }
+      }
+    }
+
     // Retornar resposta sem cache
     return NextResponse.json(
-      { document: readingDocument },
+      {
+        document: readingDocument
+          ? {
+              ...readingDocument,
+              proponent
+            }
+          : null
+      },
       {
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
