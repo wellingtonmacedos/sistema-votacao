@@ -21,24 +21,33 @@ O projeto utiliza **PostgreSQL** em todos os ambientes. A URL de conexão vem da
 ### Banco novo (vazio)
 
 ```
-pnpm exec prisma migrate deploy
-pnpm exec prisma db seed     # opcional: dados de exemplo
+npx prisma migrate deploy
+npx prisma db seed     # opcional: dados de exemplo
 ```
 
 ### Banco que já existia antes das migrations
 
 Bancos criados com `prisma db push` já têm todas as tabelas, mas não têm o histórico de migrations.
-Rode **uma única vez** em cada banco existente para marcar a migration inicial como já aplicada (não altera nenhum dado):
+Nesse caso o `migrate deploy` falha com `P3005 (The database schema is not empty)` e o servidor não sobe —
+o banco não é alterado, mas é preciso fazer o baseline antes.
+
+Marque **todas** as migrations de `prisma/migrations/` como já aplicadas (não altera nenhum dado).
+No estado atual do repositório, são estas:
 ```
-pnpm exec prisma migrate resolve --applied 0_init
+npx prisma migrate resolve --applied 0_init
+npx prisma migrate resolve --applied 20261016000000_add_session_script_items
+npx prisma migrate resolve --applied 20261016010000_add_document_types
 ```
-Confira com `pnpm exec prisma migrate status` — deve mostrar "Database schema is up to date!".
+Confira com `npx prisma migrate status` — deve mostrar "Database schema is up to date!".
+
+> Marque todas porque um banco criado por `db push` já reflete o schema mais recente.
+> Marcar apenas `0_init` faria as migrations seguintes tentarem recriar tabelas existentes.
 
 ## Alterando o schema
 
 Não use mais `prisma db push`. Depois de editar `prisma/schema.prisma`:
 ```
-pnpm exec prisma migrate dev --name descricao-curta-da-mudanca
+npx prisma migrate dev --name descricao-curta-da-mudanca
 ```
 Isso cria uma pasta em `prisma/migrations/` que deve ser commitada junto com o schema.
 A CI falha se o schema for alterado sem a migration correspondente.
@@ -47,5 +56,13 @@ A CI falha se o schema for alterado sem a migration correspondente.
 
 Com `DATABASE_URL` apontando para o banco de produção (e backup feito):
 ```
-pnpm exec prisma migrate deploy
+npx prisma migrate deploy
 ```
+
+### Via Docker
+
+No deploy com `docker-compose` (ou qualquer imagem baseada no `Dockerfile`), as migrations são aplicadas automaticamente:
+o container executa `prisma migrate deploy` antes de iniciar o servidor. Se houver migration pendente, ela é aplicada
+no start; se alguma falhar, o servidor não sobe.
+
+Por isso, a cada alteração de schema garanta que a pasta em `prisma/migrations/` esteja commitada antes de gerar a imagem.

@@ -1,5 +1,3 @@
-const path = require('path');
-
 const securityHeaders = [
   {
     key: 'X-DNS-Prefetch-Control',
@@ -36,7 +34,7 @@ const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR || '.next',
   output: process.env.NEXT_OUTPUT_MODE,
   experimental: {
-    outputFileTracingRoot: path.join(__dirname, '../'),
+    outputFileTracingRoot: __dirname,
   },
   typescript: {
     ignoreBuildErrors: false,

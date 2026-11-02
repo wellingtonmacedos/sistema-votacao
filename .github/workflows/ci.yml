@@ -30,37 +30,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
       - uses: actions/setup-node@v4
         with:
           node-version: 26
-          cache: pnpm
+          cache: npm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci --legacy-peer-deps
 
       - name: Prisma generate
-        run: pnpm exec prisma generate
+        run: npx prisma generate
 
       - name: Create shadow database
         run: PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE sistema_votacao_shadow;"
 
       - name: Migrations em sincronia com o schema
         run: >
-          pnpm exec prisma migrate diff
+          npx prisma migrate diff
           --from-migrations prisma/migrations
           --to-schema-datamodel prisma/schema.prisma
           --shadow-database-url "$SHADOW_DATABASE_URL"
           --exit-code
 
       - name: Lint
-        run: pnpm lint
+        run: npm run lint
 
       - name: Typecheck
-        run: pnpm exec tsc --noEmit
+        run: npx tsc --noEmit
 
       - name: Build
-        run: pnpm build
+        run: npm run build
