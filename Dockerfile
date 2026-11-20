@@ -35,6 +35,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
+# Pasta de anexos: criada aqui (fora do .dockerignore) e com ownership do usuário
+# nextjs para que o volume nomeado, quando montado nesse caminho, herde a permissão
+# de escrita. Sem isso o usuário nextjs (uid 1001) não consegue gravar em public/uploads.
+RUN mkdir -p /app/public/uploads && chown -R nextjs:nodejs /app/public/uploads
+
 USER nextjs
 
 EXPOSE 3000

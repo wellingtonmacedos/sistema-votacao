@@ -37,6 +37,11 @@ services:
       AWS_FOLDER_PREFIX: ${AWS_FOLDER_PREFIX:-}
     ports:
       - "3000:3000"
+    volumes:
+      # Anexos enviados pela aplicação (fotos, PDFs). Persiste entre reinícios e
+      # recriações do container; sem isso o filesystem do container é efêmero.
+      - uploads:/app/public/uploads
 
 volumes:
   pgdata:
+  uploads:
