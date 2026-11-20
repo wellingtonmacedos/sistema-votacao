@@ -123,6 +123,11 @@ export const uploadPresignedSchema = z.object({
   category: z.enum(["image", "document"]).optional(),
 });
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Senha atual é obrigatória"),
+  newPassword: z.string().min(8, "Nova senha deve ter ao menos 8 caracteres"),
+});
+
 export function parseBody<T>(schema: z.ZodType<T>, body: unknown) {
   const result = schema.safeParse(body);
   if (!result.success) {

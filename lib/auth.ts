@@ -56,6 +56,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.fullName,
           role: user.role,
+          mustChangePassword: user.mustChangePassword,
         }
       }
     })
@@ -67,6 +68,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.role = user.role
+        token.mustChangePassword = user.mustChangePassword
       }
       return token
     },
@@ -74,6 +76,7 @@ export const authOptions: NextAuthOptions = {
       if (token) {
         session.user.id = token.sub!
         session.user.role = token.role as string
+        session.user.mustChangePassword = token.mustChangePassword as boolean
       }
       return session
     }

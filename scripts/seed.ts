@@ -43,7 +43,8 @@ async function main() {
       email: 'admin@camara.gov.br',
       password: await hashPassword('admin123'),
       fullName: 'Administrador do Sistema',
-      role: 'ADMIN'
+      role: 'ADMIN',
+      mustChangePassword: true
     }
   })
   console.log('👨‍💼 Administrador criado')
@@ -54,7 +55,8 @@ async function main() {
       email: 'presidente@camara.gov.br',
       password: await hashPassword('presidente123'),
       fullName: 'Carlos Eduardo da Silva',
-      role: 'PRESIDENT'
+      role: 'PRESIDENT',
+      mustChangePassword: true
     }
   })
   console.log('🏛️ Presidente criado')
@@ -136,7 +138,8 @@ async function main() {
         email: vereador.email,
         password: await hashPassword(vereador.password),
         fullName: vereador.fullName,
-        role: 'COUNCILOR'
+        role: 'COUNCILOR',
+        mustChangePassword: true
       }
     })
     createdCouncilors.push(createdCouncilor)
@@ -149,7 +152,8 @@ async function main() {
       email: 'john@doe.com',
       password: await hashPassword('johndoe123'),
       fullName: 'John Doe - Teste Admin',
-      role: 'ADMIN'
+      role: 'ADMIN',
+      mustChangePassword: true
     }
   })
   console.log('🔧 Conta de teste criada')

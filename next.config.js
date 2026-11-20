@@ -35,6 +35,9 @@ const nextConfig = {
   output: process.env.NEXT_OUTPUT_MODE,
   experimental: {
     outputFileTracingRoot: __dirname,
+    // Habilita o hook `instrumentation.ts` (necessário no Next 14), usado para
+    // validar as variáveis de ambiente obrigatórias no boot do servidor.
+    instrumentationHook: true,
   },
   typescript: {
     ignoreBuildErrors: false,

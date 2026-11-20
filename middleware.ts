@@ -19,6 +19,12 @@ export default withAuth(
     const token = req.nextauth.token
     const pathname = req.nextUrl.pathname
 
+    // Senhas provisórias (ex.: contas criadas pelo seed) exigem troca no
+    // primeiro acesso, antes de qualquer área protegida.
+    if (token?.mustChangePassword) {
+      return NextResponse.redirect(new URL("/trocar-senha", req.url))
+    }
+
     let requiredRole: Role | null = null
     if (pathname.startsWith("/admin")) requiredRole = "ADMIN"
     else if (pathname.startsWith("/president")) requiredRole = "PRESIDENT"

@@ -57,6 +57,7 @@ model User {
   photoUrl        String?   // URL da foto do vereador
   party           String?   // Sigla do partido (ex: PSD, MDB)
   partyLogoUrl    String?   // URL do logo do partido
+  mustChangePassword Boolean @default(false) // Exige troca de senha no primeiro login
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
