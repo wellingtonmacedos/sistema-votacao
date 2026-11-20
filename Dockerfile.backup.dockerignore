@@ -1,0 +1,6 @@
+# Contexto enxuto para a imagem de backup: só os scripts necessários.
+*
+!scripts
+scripts/*
+!scripts/db-backup.mjs
+!scripts/db-restore.mjs

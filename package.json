@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "backup:db": "docker compose run --rm backup node db-backup.mjs",
+    "restore:db": "docker compose run --rm backup node db-restore.mjs"
   },
   "prisma": {
     "seed": "tsx --require dotenv/config scripts/seed.ts"

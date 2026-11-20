@@ -66,3 +66,55 @@ o container executa `prisma migrate deploy` antes de iniciar o servidor. Se houv
 no start; se alguma falhar, o servidor não sobe.
 
 Por isso, a cada alteração de schema garanta que a pasta em `prisma/migrations/` esteja commitada antes de gerar a imagem.
+
+## Backup e restauração
+
+O `docker-compose.yml` inclui um serviço **`backup`** que gera cópias **criptografadas**
+(AES-256-GCM) do banco no volume nomeado `pgbackups`. Ele faz um backup quando o
+container inicia e depois a cada `BACKUP_INTERVAL_HOURS` (padrão 24h), mantendo os
+`BACKUP_RETENTION_DAYS` mais recentes (padrão 7).
+
+Cada backup gera dois arquivos:
+- `sistema_votacao_AAAAMMDD_HHMMSS.dump.enc` — dump (`pg_dump --format=custom`) cifrado;
+- `...dump.enc.meta.json` — tamanho e `sha256`, usado para verificar a integridade na restauração.
+
+### Configuração
+
+No `.env` (usado pelo compose):
+```
+BACKUP_ENCRYPTION_KEY=<openssl rand -base64 32>
+BACKUP_RETENTION_DAYS=7
+BACKUP_INTERVAL_HOURS=24
+```
+
+> Guarde `BACKUP_ENCRYPTION_KEY` em local seguro (fora do servidor). Sem ela os backups
+> **não** podem ser restaurados — os arquivos são irrecuperáveis.
+>
+> Se a chave não estiver definida, o container de backup ficará reiniciando e registrando
+> erro; a aplicação continua funcionando normalmente.
+
+### Backup manual
+
+```
+npm run backup:db
+```
+
+### Restauração
+
+Interrompa a aplicação antes de restaurar (o `pg_restore` recria os objetos e conexões
+ativas podem atrapalhar). A restauração sempre cria antes um **snapshot do banco atual**
+em `/backups/pre-restore/`, permitindo reverter:
+
+```
+docker compose stop app
+npm run restore:db -- sistema_votacao_20261120_120000.dump.enc
+docker compose start app
+```
+
+### Copiar backups para fora do servidor
+
+Mantenha uma cópia off-site (os arquivos são criptografados, então podem sair do host):
+
+```
+docker cp sistema-votacao-backup:/backups ./backups
+```

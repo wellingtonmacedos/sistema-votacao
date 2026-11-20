@@ -42,6 +42,28 @@ services:
       # recriações do container; sem isso o filesystem do container é efêmero.
       - uploads:/app/public/uploads
 
+  # Serviço de backup criptografado do banco (AES-256-GCM).
+  # Sobe junto com o stack, faz um backup no start e depois a cada
+  # BACKUP_INTERVAL_HOURS. Os arquivos ficam no volume nomeado "pgbackups".
+  backup:
+    build:
+      context: .
+      dockerfile: Dockerfile.backup
+    container_name: sistema-votacao-backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sistema_votacao}?schema=public"
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY}
+      BACKUP_DIR: /backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+    volumes:
+      - pgbackups:/backups
+
 volumes:
   pgdata:
   uploads:
+  pgbackups:

@@ -1,0 +1,14 @@
+# Imagem do serviço de backup/restauração do PostgreSQL.
+#
+# Baseada na própria imagem do PostgreSQL 16 para garantir que pg_dump/pg_restore
+# tenham a mesma versão do servidor. O Node é adicionado apenas para a
+# criptografia autenticada (AES-256-GCM) dos arquivos de backup.
+FROM postgres:16-alpine
+
+RUN apk add --no-cache nodejs
+
+WORKDIR /app
+COPY scripts/db-backup.mjs scripts/db-restore.mjs ./
+
+# Faz um backup imediatamente e depois a cada BACKUP_INTERVAL_HOURS.
+CMD ["node", "/app/db-backup.mjs", "--loop"]
