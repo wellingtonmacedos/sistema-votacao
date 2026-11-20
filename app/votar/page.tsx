@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Vote, CheckCircle, X, Circle } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import { APP_NAME } from '@/lib/org'
 
 export default function VotingPage() {
   const { data: session } = useSession()
@@ -122,7 +123,7 @@ export default function VotingPage() {
       <div className="container max-w-4xl mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Sistema de Votação
+            {APP_NAME}
           </h1>
           <p className="text-gray-600">
             Registre seu voto nas matérias e documentos em votação

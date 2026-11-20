@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Vote, Users, Shield, FileText } from "lucide-react"
+import { APP_NAME, ORG_NAME } from "@/lib/org"
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions)
@@ -28,10 +29,10 @@ export default async function HomePage() {
       <div className="container mx-auto px-4 py-16">
         <div className="text-center mb-16">
           <h1 className="text-5xl font-bold text-gray-900 mb-6">
-            Sistema de Votação Eletrônica
+            {APP_NAME}
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Plataforma segura e transparente para sessões de votação da Câmara de Vereadores
+            Plataforma segura e transparente para sessões de votação da {ORG_NAME}
           </p>
           <Link href="/login">
             <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-lg px-8 py-3">

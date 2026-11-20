@@ -5,6 +5,7 @@ import { useState } from "react"
 import { signOut, useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { APP_NAME } from "@/lib/org"
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -50,7 +51,7 @@ export function Header() {
         <div className="flex items-center gap-2">
           <Vote className="h-6 w-6 text-blue-600" />
           <h1 className="font-semibold text-lg">
-            Sistema de Votação
+            {APP_NAME}
           </h1>
         </div>
 

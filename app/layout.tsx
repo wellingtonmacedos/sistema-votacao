@@ -4,12 +4,13 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { Providers } from "@/components/providers"
 import { Toaster as HotToaster } from "react-hot-toast"
+import { APP_NAME, ORG_NAME } from "@/lib/org"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Sistema de Votação Eletrônica - Câmara de Vereadores",
-  description: "Sistema seguro para votação eletrônica em sessões da Câmara de Vereadores",
+  title: `${APP_NAME} - ${ORG_NAME}`,
+  description: `Sistema seguro para votação eletrônica em sessões da ${ORG_NAME}`,
 }
 
 export default function RootLayout({
