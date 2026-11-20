@@ -7,67 +7,6 @@ import { parseBody, voteSchema, ValidationError } from '@/lib/validations'
 
 const VALID_VOTE_TYPES = ['YES', 'NO', 'ABSTENTION'] as const
 
-async function validatePresidentTieBreak({
-  sessionId,
-  itemType,
-  itemId
-}: {
-  sessionId: string
-  itemType: 'matter' | 'document'
-  itemId: string
-}) {
-  const presentCouncilors = await prisma.attendance.count({
-    where: {
-      sessionId,
-      isPresent: true,
-      user: {
-        role: 'COUNCILOR'
-      }
-    }
-  })
-
-  if (presentCouncilors === 0) {
-    return { allowed: false, error: 'Não há vereadores presentes para gerar voto de desempate' }
-  }
-
-  const votes = itemType === 'matter'
-    ? await prisma.vote.findMany({
-        where: { matterId: itemId },
-        include: {
-          user: {
-            select: {
-              role: true
-            }
-          }
-        }
-      })
-    : await prisma.documentVote.findMany({
-        where: { documentId: itemId },
-        include: {
-          user: {
-            select: {
-              role: true
-            }
-          }
-        }
-      })
-
-  const councilorVotes = votes.filter((vote) => vote.user.role === 'COUNCILOR')
-
-  if (councilorVotes.length < presentCouncilors) {
-    return { allowed: false, error: 'O presidente só pode votar após todos os vereadores presentes votarem' }
-  }
-
-  const yesVotes = councilorVotes.filter((vote) => vote.voteType === 'YES').length
-  const noVotes = councilorVotes.filter((vote) => vote.voteType === 'NO').length
-
-  if (yesVotes !== noVotes) {
-    return { allowed: false, error: 'O presidente só pode votar em caso de empate entre os vereadores presentes' }
-  }
-
-  return { allowed: true }
-}
-
 // POST - Registrar voto de vereador
 export async function POST(request: NextRequest) {
   try {
@@ -145,22 +84,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Esta matéria não está em votação' }, { status: 400 })
       }
 
-      if (session.user.role === 'PRESIDENT') {
-        if (voteType === 'ABSTENTION') {
-          return NextResponse.json({ error: 'O presidente não pode registrar abstenção no voto de desempate' }, { status: 400 })
-        }
-
-        const tieBreakValidation = await validatePresidentTieBreak({
-          sessionId: currentSession.id,
-          itemType: 'matter',
-          itemId
-        })
-
-        if (!tieBreakValidation.allowed) {
-          return NextResponse.json({ error: tieBreakValidation.error }, { status: 400 })
-        }
-      }
-
       // Verificar se o vereador já votou
       const existingVote = await prisma.vote.findUnique({
         where: {
@@ -209,22 +132,6 @@ export async function POST(request: NextRequest) {
 
       if (document.isApproved !== null) {
         return NextResponse.json({ error: 'Esta votação de documento já foi finalizada' }, { status: 400 })
-      }
-
-      if (session.user.role === 'PRESIDENT') {
-        if (voteType === 'ABSTENTION') {
-          return NextResponse.json({ error: 'O presidente não pode registrar abstenção no voto de desempate' }, { status: 400 })
-        }
-
-        const tieBreakValidation = await validatePresidentTieBreak({
-          sessionId: currentSession.id,
-          itemType: 'document',
-          itemId
-        })
-
-        if (!tieBreakValidation.allowed) {
-          return NextResponse.json({ error: tieBreakValidation.error }, { status: 400 })
-        }
       }
 
       // Verificar se o vereador já votou

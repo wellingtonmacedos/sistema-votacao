@@ -15,13 +15,6 @@ export default function VotingPage() {
   const [activeVoting, setActiveVoting] = useState<any>(null)
   const [userVote, setUserVote] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [presidentVotingStatus, setPresidentVotingStatus] = useState<{
-    canVote: boolean
-    message: string
-  }>({
-    canVote: false,
-    message: 'O presidente só vota em caso de empate, após todos os vereadores presentes votarem.'
-  })
 
   useEffect(() => {
     if (session?.user) {
@@ -47,46 +40,9 @@ export default function VotingPage() {
             const votesData = await votesResponse.json()
             const existingVote = votesData.votes.find((vote: any) => vote.user.id === session?.user?.id)
             setUserVote(existingVote?.voteType || null)
-
-            if (session?.user?.role === 'PRESIDENT') {
-              const attendanceResponse = await fetch('/api/public/attendance')
-              if (attendanceResponse.ok) {
-                const attendanceData = await attendanceResponse.json()
-                const presentCouncilors = (attendanceData.attendances || []).filter(
-                  (attendance: any) => attendance.isPresent && attendance.user?.role === 'COUNCILOR'
-                ).length
-                const councilorVotes = (votesData.votes || []).filter((vote: any) => vote.user?.role === 'COUNCILOR')
-                const yesVotes = councilorVotes.filter((vote: any) => vote.voteType === 'YES').length
-                const noVotes = councilorVotes.filter((vote: any) => vote.voteType === 'NO').length
-
-                let message = 'O presidente só vota em caso de empate, após todos os vereadores presentes votarem.'
-                let canVote = false
-
-                if (existingVote) {
-                  message = 'Você já exerceu o voto de desempate nesta votação.'
-                } else if (presentCouncilors === 0) {
-                  message = 'Ainda não há vereadores presentes para apurar um empate.'
-                } else if (councilorVotes.length < presentCouncilors) {
-                  message = 'Aguardando todos os vereadores presentes votarem.'
-                } else if (yesVotes !== noVotes) {
-                  message = 'Não há empate entre os vereadores presentes. O presidente não vota neste caso.'
-                } else {
-                  canVote = true
-                  message = 'Empate confirmado. O voto de desempate do presidente está liberado.'
-                }
-
-                setPresidentVotingStatus({ canVote, message })
-              }
-            }
           }
         } else {
           setUserVote(null)
-          if (session?.user?.role === 'PRESIDENT') {
-            setPresidentVotingStatus({
-              canVote: false,
-              message: 'O presidente só vota em caso de empate, após todos os vereadores presentes votarem.'
-            })
-          }
         }
       }
     } catch (error) {
@@ -169,9 +125,7 @@ export default function VotingPage() {
             Sistema de Votação
           </h1>
           <p className="text-gray-600">
-            {session.user.role === 'PRESIDENT'
-              ? 'O presidente só registra voto em caso de empate entre os vereadores presentes.'
-              : 'Registre seu voto nas matérias e documentos em votação'}
+            Registre seu voto nas matérias e documentos em votação
           </p>
         </div>
 
@@ -267,19 +221,11 @@ export default function VotingPage() {
                 </div>
               )}
 
-              {session.user.role === 'PRESIDENT' && (
-                <div className={`rounded-lg border p-4 ${presidentVotingStatus.canVote ? 'border-purple-200 bg-purple-50' : 'border-amber-200 bg-amber-50'}`}>
-                  <p className={`text-sm font-medium ${presidentVotingStatus.canVote ? 'text-purple-800' : 'text-amber-800'}`}>
-                    {presidentVotingStatus.message}
-                  </p>
-                </div>
-              )}
-
               {/* Botões de votação */}
-              <div className={`grid grid-cols-1 ${session.user.role === 'PRESIDENT' ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4`}>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Button
                   onClick={() => handleVote('YES')}
-                  disabled={loading || (session.user.role === 'PRESIDENT' && !presidentVotingStatus.canVote)}
+                  disabled={loading}
                   className={`h-16 text-lg ${
                     userVote === 'YES'
                       ? 'bg-green-700 hover:bg-green-800'
@@ -291,7 +237,7 @@ export default function VotingPage() {
                 </Button>
                 <Button
                   onClick={() => handleVote('NO')}
-                  disabled={loading || (session.user.role === 'PRESIDENT' && !presidentVotingStatus.canVote)}
+                  disabled={loading}
                   className={`h-16 text-lg ${
                     userVote === 'NO'
                       ? 'bg-red-700 hover:bg-red-800'
@@ -301,21 +247,19 @@ export default function VotingPage() {
                   <X className="h-6 w-6 mr-2" />
                   CONTRÁRIO
                 </Button>
-                {session.user.role !== 'PRESIDENT' && (
-                  <Button
-                    onClick={() => handleVote('ABSTENTION')}
-                    disabled={loading}
-                    variant="outline"
-                    className={`h-16 text-lg border-2 ${
-                      userVote === 'ABSTENTION'
-                        ? 'border-yellow-600 bg-yellow-50 text-yellow-800'
-                        : 'border-yellow-500 hover:bg-yellow-50 text-yellow-700'
-                    }`}
-                  >
-                    <Circle className="h-6 w-6 mr-2" />
-                    ABSTENÇÃO
-                  </Button>
-                )}
+                <Button
+                  onClick={() => handleVote('ABSTENTION')}
+                  disabled={loading}
+                  variant="outline"
+                  className={`h-16 text-lg border-2 ${
+                    userVote === 'ABSTENTION'
+                      ? 'border-yellow-600 bg-yellow-50 text-yellow-800'
+                      : 'border-yellow-500 hover:bg-yellow-50 text-yellow-700'
+                  }`}
+                >
+                  <Circle className="h-6 w-6 mr-2" />
+                  ABSTENÇÃO
+                </Button>
               </div>
 
               {/* Informações adicionais */}
