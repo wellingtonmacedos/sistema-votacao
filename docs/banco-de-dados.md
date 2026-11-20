@@ -93,6 +93,23 @@ BACKUP_INTERVAL_HOURS=24
 > Se a chave não estiver definida, o container de backup ficará reiniciando e registrando
 > erro; a aplicação continua funcionando normalmente.
 
+#### Cópia off-site automática (opcional)
+
+Para enviar cada backup automaticamente a um bucket S3 (recomendado em produção),
+defina também:
+```
+BACKUP_S3_BUCKET=meu-bucket-de-backups
+BACKUP_S3_PREFIX=backups
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+```
+
+A cada execução o container de backup envia o `.dump.enc` e o `.meta.json` para
+`s3://<BACKUP_S3_BUCKET>/<BACKUP_S3_PREFIX>/`. A **retenção local não apaga o S3** —
+use uma política de ciclo de vida (lifecycle) no bucket para expirar versões antigas.
+Sem `BACKUP_S3_BUCKET`, a cópia off-site é ignorada e o backup permanece apenas local.
+
 ### Backup manual
 
 ```

@@ -7,13 +7,37 @@
 // Uso: node db-restore.mjs <arquivo.dump.enc>
 //   Ex.: node db-restore.mjs sistema_votacao_20261120_120000.dump.enc
 //
-// Variáveis: DATABASE_URL, BACKUP_ENCRYPTION_KEY, BACKUP_DIR (opcional)
+// Se o arquivo não existir localmente e BACKUP_S3_BUCKET estiver definida, ele é
+// baixado do S3 (com o .meta.json correspondente, quando disponível).
+//
+// Variáveis: DATABASE_URL, BACKUP_ENCRYPTION_KEY, BACKUP_DIR (opcional),
+//            BACKUP_S3_BUCKET/BACKUP_S3_PREFIX (opcionais, para baixar do S3)
 
 import { createHash } from 'node:crypto'
-import { readFile, unlink, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { dbEnv, decryptBuffer, loadKey, run, runBackup } from './db-backup.mjs'
+
+async function downloadFromS3(filePath, fileName, dir) {
+  const bucket = process.env.BACKUP_S3_BUCKET
+  if (!bucket) return
+  const prefix = (process.env.BACKUP_S3_PREFIX || 'backups').replace(/^\/+|\/+$/g, '')
+  const base = path.basename(fileName)
+  const key = prefix ? `${prefix}/${base}` : base
+  const metaKey = key.replace(/\.dump\.enc$/, '.meta.json')
+  const metaPath = filePath.replace(/\.dump\.enc$/, '.meta.json')
+
+  await mkdir(dir, { recursive: true })
+  console.log(`[restore] Arquivo não encontrado localmente; baixando s3://${bucket}/${key}...`)
+  await run('aws', ['s3', 'cp', `s3://${bucket}/${key}`, filePath], process.env)
+  try {
+    await run('aws', ['s3', 'cp', `s3://${bucket}/${metaKey}`, metaPath], process.env)
+  } catch {
+    console.warn('[restore] .meta.json não disponível no S3; seguindo sem verificação de sha256.')
+  }
+}
 
 async function verifyIntegrity(filePath, payload) {
   const metaPath = filePath.replace(/\.dump\.enc$/, '.meta.json')
@@ -46,6 +70,10 @@ async function main() {
   const dir = process.env.BACKUP_DIR || '/backups'
   const filePath = path.isAbsolute(fileName) ? fileName : path.join(dir, fileName)
   const key = loadKey()
+
+  if (!existsSync(filePath)) {
+    await downloadFromS3(filePath, fileName, dir)
+  }
 
   const payload = await readFile(filePath)
   await verifyIntegrity(filePath, payload)

@@ -15,6 +15,13 @@
 //   BACKUP_DIR             (opcional, padrão /backups)
 //   BACKUP_RETENTION_DAYS  (opcional, padrão 7)
 //   BACKUP_INTERVAL_HOURS  (opcional, padrão 24; usado com --loop)
+//
+// Cópia offsite (opcional): se BACKUP_S3_BUCKET estiver definida, o backup
+// (arquivo .dump.enc + .meta.json) é enviado para o S3 via aws-cli após ser
+// gravado localmente. Requer AWS_REGION/AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY
+// (ou credenciais de instância). BACKUP_S3_PREFIX define o prefixo (padrão
+// "backups"). A retenção local (BACKUP_RETENTION_DAYS) não apaga o S3; aplique
+// as regras de ciclo de vida (lifecycle) no bucket.
 
 import { spawn } from 'node:child_process'
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
@@ -120,6 +127,23 @@ async function applyRetention(dir, keep) {
   return excess
 }
 
+// Envia o backup (dump + metadados) para o S3 via aws-cli, se configurado.
+async function uploadToS3(filePath) {
+  const bucket = process.env.BACKUP_S3_BUCKET
+  if (!bucket) return
+
+  const prefix = (process.env.BACKUP_S3_PREFIX || 'backups').replace(/^\/+|\/+$/g, '')
+  const name = path.basename(filePath)
+  const metaPath = filePath.replace(/\.dump\.enc$/, '.meta.json')
+
+  const key = prefix ? `${prefix}/${name}` : name
+  const metaKey = key.replace(/\.dump\.enc$/, '.meta.json')
+
+  await run('aws', ['s3', 'cp', filePath, `s3://${bucket}/${key}`], process.env)
+  await run('aws', ['s3', 'cp', metaPath, `s3://${bucket}/${metaKey}`], process.env)
+  console.log(`[backup] Cópia offsite enviada: s3://${bucket}/${key}`)
+}
+
 export async function runBackup({ subdir } = {}) {
   const baseDir = process.env.BACKUP_DIR || '/backups'
   const dir = subdir ? path.join(baseDir, subdir) : baseDir
@@ -164,6 +188,8 @@ export async function runBackup({ subdir } = {}) {
   console.log(`[backup] Concluído: ${filePath} (${encrypted.length} bytes)`)
 
   if (!subdir) {
+    await uploadToS3(filePath)
+
     const removed = await applyRetention(dir, Number(process.env.BACKUP_RETENTION_DAYS || 7))
     if (removed.length > 0) {
       console.log(`[backup] Retenção: ${removed.length} backup(s) antigo(s) removido(s).`)

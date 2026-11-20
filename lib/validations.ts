@@ -128,6 +128,18 @@ export const changePasswordSchema = z.object({
   newPassword: z.string().min(8, "Nova senha deve ter ao menos 8 caracteres"),
 });
 
+// Criação do administrador inicial (onboarding de uma instância nova).
+export const setupAdminSchema = z.object({
+  token: z.string().min(1, "Token de configuração é obrigatório"),
+  email: z.string().trim().email("Email inválido"),
+  fullName: z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres"),
+  password: z
+    .string()
+    .min(8, "Senha deve ter ao menos 8 caracteres")
+    .regex(/[A-Za-z]/, "A senha deve conter ao menos uma letra")
+    .regex(/[0-9]/, "A senha deve conter ao menos um número"),
+});
+
 export function parseBody<T>(schema: z.ZodType<T>, body: unknown) {
   const result = schema.safeParse(body);
   if (!result.success) {

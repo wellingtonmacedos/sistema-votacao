@@ -146,18 +146,6 @@ async function main() {
   }
   console.log(`👥 ${createdCouncilors.length} Vereadores criados`)
 
-  // 4. Criar conta de teste especial (conforme diretrizes)
-  const testUser = await prisma.user.create({
-    data: {
-      email: 'john@doe.com',
-      password: await hashPassword('johndoe123'),
-      fullName: 'John Doe - Teste Admin',
-      role: 'ADMIN',
-      mustChangePassword: true
-    }
-  })
-  console.log('🔧 Conta de teste criada')
-
   // 5. Criar tipos padrão de documentos por fase
   await prisma.documentType.createMany({
     data: [
@@ -499,7 +487,6 @@ O presente projeto visa adequar os horários comerciais às necessidades da popu
   console.log(`- 1 Administrador: admin@camara.gov.br (senha: admin123)`)
   console.log(`- 1 Presidente: presidente@camara.gov.br (senha: presidente123)`)
   console.log(`- 13 Vereadores: [email]@camara.gov.br (senha: vereador123)`)
-  console.log(`- 1 Conta Teste: john@doe.com (senha: johndoe123)`)
   console.log(`- 1 Sessão de demonstração com todas as fases`)
   console.log(`- 3 Pautas para votação`)
   console.log(`- 4 Documentos para expedientes (ata, requerimentos, projetos)`)
