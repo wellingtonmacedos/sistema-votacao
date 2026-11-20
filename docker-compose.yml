@@ -48,6 +48,14 @@ services:
       # Anexos enviados pela aplicação (fotos, PDFs). Persiste entre reinícios e
       # recriações do container; sem isso o filesystem do container é efêmero.
       - uploads:/app/public/uploads
+    healthcheck:
+      # readiness: valida o processo e a conexão com o Postgres via /api/health.
+      # start_period cobre o tempo de `prisma migrate deploy` + boot do servidor.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
 
   # Serviço de backup criptografado do banco (AES-256-GCM).
   # Sobe junto com o stack, faz um backup no start e depois a cada
