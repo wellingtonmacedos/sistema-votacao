@@ -38,6 +38,9 @@ const nextConfig = {
     // Habilita o hook `instrumentation.ts` (necessário no Next 14), usado para
     // validar as variáveis de ambiente obrigatórias no boot do servidor.
     instrumentationHook: true,
+    // ioredis usa requires dinâmicos opcionais; mantê-lo externo evita que o
+    // webpack tente empacotá-lo no bundle standalone do servidor.
+    serverComponentsExternalPackages: ['ioredis'],
   },
   typescript: {
     ignoreBuildErrors: false,

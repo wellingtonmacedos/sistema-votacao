@@ -24,7 +24,7 @@ export const authOptions: NextAuthOptions = {
         const ip = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor
         const rateKey = buildRateLimitKey(credentials.email.toLowerCase(), ip)
 
-        const limit = rateLimit(rateKey)
+        const limit = await rateLimit(rateKey)
         if (!limit.allowed) {
           console.warn(`Rate limit excedido para ${credentials.email}. Tente novamente em ${limit.retryAfter}s`)
           return null
@@ -49,7 +49,7 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        resetRateLimit(rateKey)
+        await resetRateLimit(rateKey)
 
         return {
           id: user.id,

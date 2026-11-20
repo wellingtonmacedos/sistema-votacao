@@ -21,6 +21,20 @@ services:
       timeout: 5s
       retries: 5
 
+  # Redis: backend do rate limit de login (janela fixa). Acesso apenas pela rede
+  # interna do Docker; sem porta publicada e sem persistência (os contadores são
+  # efêmeros por natureza — perder a janela em um restart é aceitável).
+  redis:
+    image: redis:7-alpine
+    container_name: sistema-votacao-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   app:
     build:
       context: .
@@ -30,8 +44,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sistema_votacao}?schema=public"
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       AWS_REGION: ${AWS_REGION:-}
