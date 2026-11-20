@@ -16,6 +16,7 @@ yarn-error.log*
 README.md
 docs
 scripts
+deploy
 *.db
 *.sqlite
 .DS_Store
