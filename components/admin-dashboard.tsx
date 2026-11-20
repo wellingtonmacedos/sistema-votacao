@@ -89,6 +89,7 @@ const menuItems = [
   { id: 'consideracoes', label: 'Considerações', icon: MessageSquare, color: 'text-violet-600' },
   { id: 'tribuna', label: 'Tribuna Livre', icon: Megaphone, color: 'text-amber-600' },
   { id: 'relatorios', label: 'Relatórios', icon: BarChart, color: 'text-pink-600', href: '/admin/relatorios' },
+  { id: 'auditoria', label: 'Auditoria', icon: Shield, color: 'text-rose-600', href: '/admin/auditoria' },
 ]
 
 // Componente para gerenciar Considerações Finais

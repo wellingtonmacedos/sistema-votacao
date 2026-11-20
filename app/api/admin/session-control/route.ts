@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { parseBody, sessionControlSchema, ValidationError } from "@/lib/validations";
+import { logAudit } from "@/lib/audit";
 
 // Controlar sessão (iniciar/encerrar)
 export async function POST(request: NextRequest) {
@@ -91,6 +92,12 @@ export async function POST(request: NextRequest) {
         await prisma.attendance.createMany({ data: missingAttendances });
       }
 
+      await logAudit(
+        "SESSAO_INICIADA",
+        `Sessão iniciada: ${updatedSession.sessionNumber} — ${updatedSession.title}`,
+        request
+      );
+
       return NextResponse.json({
         message: "Sessão iniciada com sucesso",
         session: updatedSession
@@ -143,6 +150,12 @@ export async function POST(request: NextRequest) {
           attendanceEndedAt: now
         }
       });
+
+      await logAudit(
+        "SESSAO_ENCERRADA",
+        `Sessão encerrada: ${updatedSession.sessionNumber} — ${updatedSession.title}`,
+        request
+      );
 
       return NextResponse.json({
         message: "Sessão encerrada com sucesso",

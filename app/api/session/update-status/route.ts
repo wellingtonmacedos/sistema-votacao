@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { toPhaseStatusKey } from '@/lib/phase-utils'
+import { logAudit } from '@/lib/audit'
 
 export async function POST(request: Request) {
   try {
@@ -93,6 +94,16 @@ export async function POST(request: Request) {
       where: { id: currentSession.id },
       data: updateData
     })
+
+    if (currentSession.currentPhase !== status) {
+      await logAudit(
+        isClosed ? 'SESSAO_ENCERRADA' : 'SESSAO_FASE_ALTERADA',
+        isClosed
+          ? `Sessão encerrada: ${currentSession.sessionNumber} — ${currentSession.title}`
+          : `Fase alterada: ${currentSession.currentPhase} → ${status} (${currentSession.sessionNumber})`,
+        request
+      )
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

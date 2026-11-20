@@ -5,6 +5,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import { prisma } from "./db"
 import bcrypt from "bcryptjs"
 import { rateLimit, resetRateLimit, buildRateLimitKey } from "./rate-limit"
+import { logAuditEvent } from "./audit"
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -20,12 +21,20 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
+        const email = credentials.email.toLowerCase()
         const forwardedFor = req.headers?.["x-forwarded-for"]
         const ip = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor
-        const rateKey = buildRateLimitKey(credentials.email.toLowerCase(), ip)
+        const userAgent = req.headers?.["user-agent"] ?? null
+        const rateKey = buildRateLimitKey(email, ip)
+
+        // Tentativas de login podem não ter usuário identificado (email
+        // inexistente), por isso gravamos direto via logAuditEvent.
+        const auditLogin = (action: string, details: string, userId: string | null = null) =>
+          logAuditEvent({ action, details, userId, ipAddress: ip ?? null, userAgent })
 
         const limit = await rateLimit(rateKey)
         if (!limit.allowed) {
+          await auditLogin("LOGIN_BLOQUEADO", `Excesso de tentativas de login para ${email}`)
           console.warn(`Rate limit excedido para ${credentials.email}. Tente novamente em ${limit.retryAfter}s`)
           return null
         }
@@ -36,7 +45,13 @@ export const authOptions: NextAuthOptions = {
           }
         })
 
-        if (!user || !user.isActive) {
+        if (!user) {
+          await auditLogin("LOGIN_FALHA", `Usuário inexistente: ${email}`)
+          return null
+        }
+
+        if (!user.isActive) {
+          await auditLogin("LOGIN_FALHA", `Usuário inativo: ${email}`, user.id)
           return null
         }
 
@@ -46,10 +61,12 @@ export const authOptions: NextAuthOptions = {
         )
 
         if (!isPasswordValid) {
+          await auditLogin("LOGIN_FALHA", `Senha incorreta: ${email}`, user.id)
           return null
         }
 
         await resetRateLimit(rateKey)
+        await auditLogin("LOGIN_SUCESSO", `Login de ${email}`, user.id)
 
         return {
           id: user.id,

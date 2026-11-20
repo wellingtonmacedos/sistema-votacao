@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { Prisma, UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { parseBody, createUserSchema, updateUserSchema, ValidationError } from "@/lib/validations";
+import { logAudit } from "@/lib/audit";
 
 
 export async function GET(request: NextRequest) {
@@ -106,6 +107,12 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    await logAudit(
+      "USUARIO_CRIADO",
+      `Usuário criado: ${user.fullName} (${user.email}) [${user.role}]`,
+      request
+    );
+
     return NextResponse.json(user);
   } catch (error) {
     if (error instanceof ValidationError) {
@@ -131,6 +138,11 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const data = parseBody(updateUserSchema, body);
     const { id, email, fullName, password, role, isActive, party, photoUrl, partyLogoUrl } = data;
+
+    const before = await prisma.user.findUnique({ where: { id } });
+    if (!before) {
+      return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
+    }
 
     // Verificar se o email já existe (para outro usuário)
     if (email) {
@@ -174,6 +186,28 @@ export async function PATCH(request: NextRequest) {
         createdAt: true
       }
     });
+
+    const changes: string[] = [];
+    if (email && email !== before.email) changes.push(`email (${before.email} → ${email})`);
+    if (fullName && fullName !== before.fullName) changes.push("nome");
+    if (role && role !== before.role) changes.push(`perfil (${before.role} → ${role})`);
+    if (typeof isActive === "boolean" && isActive !== before.isActive) {
+      changes.push(isActive ? "reativado" : "desativado");
+    }
+    if (password) changes.push("senha redefinida");
+    if (party !== undefined && (party || null) !== before.party) changes.push("partido");
+    if (photoUrl !== undefined && (photoUrl || null) !== before.photoUrl) changes.push("foto");
+    if (partyLogoUrl !== undefined && (partyLogoUrl || null) !== before.partyLogoUrl) {
+      changes.push("logo do partido");
+    }
+
+    if (changes.length > 0) {
+      await logAudit(
+        "USUARIO_ATUALIZADO",
+        `Usuário ${user.fullName} (${user.email}) atualizado: ${changes.join(", ")}`,
+        request
+      );
+    }
 
     return NextResponse.json(user);
   } catch (error) {
@@ -226,6 +260,12 @@ export async function DELETE(request: NextRequest) {
 
     // Hard delete (cascade remove votos, presenças, solicitações, etc.)
     await prisma.user.delete({ where: { id } });
+
+    await logAudit(
+      "USUARIO_EXCLUIDO",
+      `Usuário excluído: ${userToDelete.fullName} (${userToDelete.email}) [${userToDelete.role}]`,
+      request
+    );
 
     return NextResponse.json({ success: true, message: "Usuário excluído permanentemente" });
   } catch (error) {

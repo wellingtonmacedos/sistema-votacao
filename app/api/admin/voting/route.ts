@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { logAudit } from '@/lib/audit'
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,6 +45,8 @@ export async function POST(request: NextRequest) {
           where: { id: itemId },
           data: { status: 'VOTING' }
         })
+
+        await logAudit('VOTACAO_INICIADA', `Votação iniciada (matéria): ${matter.title}`, request)
 
         return NextResponse.json({
           message: 'Votação iniciada com sucesso',
@@ -92,6 +95,8 @@ export async function POST(request: NextRequest) {
         await prisma.documentVote.deleteMany({
           where: { documentId: itemId }
         })
+
+        await logAudit('VOTACAO_INICIADA', `Votação iniciada (documento): ${document.title}`, request)
 
         return NextResponse.json({
           message: 'Votação de documento iniciada com sucesso',
@@ -144,6 +149,12 @@ export async function POST(request: NextRequest) {
           data: { status: newStatus }
         })
 
+        await logAudit(
+          'VOTACAO_ENCERRADA',
+          `Votação encerrada (matéria): ${matter.title} — Sim ${yesVotes}, Não ${noVotes}, Abstenção ${abstentions} → ${newStatus}`,
+          request
+        )
+
         return NextResponse.json({
           message: 'Votação finalizada',
           matter: updatedMatter,
@@ -181,6 +192,12 @@ export async function POST(request: NextRequest) {
             isVoting: false 
           }
         })
+
+        await logAudit(
+          'VOTACAO_ENCERRADA',
+          `Votação encerrada (documento): ${document.title} — Sim ${yesVotes}, Não ${noVotes} → ${isApproved ? 'APROVADO' : 'REJEITADO'}`,
+          request
+        )
 
         return NextResponse.json({
           message: 'Votação de documento finalizada',

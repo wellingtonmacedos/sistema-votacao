@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 
 // Criar nova sessão
 export async function POST(request: NextRequest) {
@@ -82,6 +83,12 @@ export async function POST(request: NextRequest) {
         createdBy: actingUser.id
       }
     });
+
+    await logAudit(
+      "SESSAO_CRIADA",
+      `Sessão criada: ${newSession.sessionNumber} — ${newSession.title}`,
+      request
+    );
 
     return NextResponse.json({
       message: "Sessão criada com sucesso",
