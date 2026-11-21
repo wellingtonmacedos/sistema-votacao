@@ -4,3 +4,4 @@
 scripts/*
 !scripts/db-backup.mjs
 !scripts/db-restore.mjs
+!scripts/uploads-restore.mjs

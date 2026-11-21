@@ -194,6 +194,27 @@ Se o arquivo não existir localmente e `BACKUP_S3_BUCKET` estiver definida, ele 
 baixado do S3 automaticamente. A restauração verifica o `sha256` do `.meta.json`
 antes de sobrescrever os arquivos.
 
+### Ensaio de restauração (teste periódico)
+
+Recomenda-se ensaiar a restauração periodicamente, **em um banco descartável**,
+para confirmar que os backups são recuperáveis sem tocar nos dados de produção:
+
+1. Crie um banco vazio (ex.: `sistema_votacao_restore`) e aplique o schema nele
+   (`prisma migrate deploy` com `DATABASE_URL` apontando para esse banco).
+2. Rode um backup apontando para o banco de teste:
+   ```bash
+   docker compose run --rm -e DATABASE_URL=<banco-de-teste> backup node db-backup.mjs
+   ```
+3. Popule dados de prova, apague-os (simulando a perda) e restaure com
+   `db-restore.mjs` / `uploads-restore.mjs`, apontando `DATABASE_URL` para o banco
+   de teste.
+4. Confirme que os dados voltaram e que o snapshot foi criado em
+   `/backups/pre-restore/`.
+
+A verificação de integridade roda **antes** de qualquer sobrescrita: um arquivo
+corrompido é rejeitado com erro (`sha256 ... não confere`) e o banco permanece
+intacto.
+
 ### Verificação de consistência do schema
 
 Confirme que o banco está sincronizado com o histórico de migrations:
