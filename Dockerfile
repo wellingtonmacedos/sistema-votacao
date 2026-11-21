@@ -13,6 +13,14 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_OUTPUT_MODE=standalone
+# Identidade institucional (deploy dedicado por Câmara). São variáveis NEXT_PUBLIC_*:
+# ficam embutidas no bundle do cliente em tempo de build, por isso precisam chegar
+# aqui como build args (o docker-compose mapeia de NEXT_PUBLIC_APP_NAME/ORG_NAME).
+# Sem valor, o sistema usa o padrão genérico.
+ARG NEXT_PUBLIC_APP_NAME=""
+ARG NEXT_PUBLIC_ORG_NAME=""
+ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
+ENV NEXT_PUBLIC_ORG_NAME=$NEXT_PUBLIC_ORG_NAME
 # Placeholder apenas para o build: lib/db.ts valida a variável ao ser importado pelos
 # route handlers. O valor real é injetado em runtime pelo ambiente de deploy.
 ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"

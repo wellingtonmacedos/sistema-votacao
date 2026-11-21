@@ -70,13 +70,20 @@ Por isso, a cada alteração de schema garanta que a pasta em `prisma/migrations
 ## Backup e restauração
 
 O `docker-compose.yml` inclui um serviço **`backup`** que gera cópias **criptografadas**
-(AES-256-GCM) do banco no volume nomeado `pgbackups`. Ele faz um backup quando o
-container inicia e depois a cada `BACKUP_INTERVAL_HOURS` (padrão 24h), mantendo os
-`BACKUP_RETENTION_DAYS` mais recentes (padrão 7).
+(AES-256-GCM) do **banco e dos anexos** no volume nomeado `pgbackups`. Ele faz um backup
+quando o container inicia e depois a cada `BACKUP_INTERVAL_HOURS` (padrão 24h), mantendo
+os `BACKUP_RETENTION_DAYS` mais recentes (padrão 7).
 
-Cada backup gera dois arquivos:
+Cada execução gera dois pares de arquivos (mesmo timestamp):
 - `sistema_votacao_AAAAMMDD_HHMMSS.dump.enc` — dump (`pg_dump --format=custom`) cifrado;
-- `...dump.enc.meta.json` — tamanho e `sha256`, usado para verificar a integridade na restauração.
+- `sistema_votacao_AAAAMMDD_HHMMSS.uploads.tar.gz.enc` — anexos (`tar+gzip`) cifrados;
+- e um `.meta.json` para cada (ex.: `sistema_votacao_AAAAMMDD_HHMMSS.meta.json`), com
+  tamanho e `sha256`, usado para verificar a integridade na restauração.
+
+> Os anexos entram no backup quando `UPLOADS_DIR` está definida — no `docker-compose`
+> já é `/uploads` (o volume `uploads` é montado no serviço de backup). Fora do Docker,
+> aponte `UPLOADS_DIR` para o diretório local (ex.: `./public/uploads`). Sem ela, apenas
+> o banco é copiado.
 
 ### Configuração
 
@@ -105,10 +112,11 @@ AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 ```
 
-A cada execução o container de backup envia o `.dump.enc` e o `.meta.json` para
-`s3://<BACKUP_S3_BUCKET>/<BACKUP_S3_PREFIX>/`. A **retenção local não apaga o S3** —
-use uma política de ciclo de vida (lifecycle) no bucket para expirar versões antigas.
-Sem `BACKUP_S3_BUCKET`, a cópia off-site é ignorada e o backup permanece apenas local.
+A cada execução o container de backup envia o dump e o arquivo de anexos (e os
+respectivos `.meta.json`) para `s3://<BACKUP_S3_BUCKET>/<BACKUP_S3_PREFIX>/`. A
+**retenção local não apaga o S3** — use uma política de ciclo de vida (lifecycle)
+no bucket para expirar versões antigas. Sem `BACKUP_S3_BUCKET`, a cópia off-site é
+ignorada e o backup permanece apenas local.
 
 ### Backup manual
 
@@ -127,6 +135,19 @@ docker compose stop app
 npm run restore:db -- sistema_votacao_20261120_120000.dump.enc
 docker compose start app
 ```
+
+Os anexos são restaurados separadamente (também cria um snapshot pré-restore dos
+anexos atuais):
+
+```
+docker compose stop app
+npm run restore:uploads -- sistema_votacao_20261120_120000.uploads.tar.gz.enc
+docker compose start app
+```
+
+Em ambos os casos, se o arquivo não existir localmente e `BACKUP_S3_BUCKET` estiver
+definida, ele é baixado do S3 automaticamente. O procedimento completo (incluindo
+verificação de integridade) está em [implantacao-e-operacao.md](./implantacao-e-operacao.md).
 
 ### Copiar backups para fora do servidor
 

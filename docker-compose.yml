@@ -39,6 +39,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Identidade institucional injetada em tempo de build (variáveis NEXT_PUBLIC_*).
+      # Defina NEXT_PUBLIC_APP_NAME/NEXT_PUBLIC_ORG_NAME no .env antes de subir.
+      args:
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-}
+        NEXT_PUBLIC_ORG_NAME: ${NEXT_PUBLIC_ORG_NAME:-}
     container_name: sistema-votacao-app
     restart: unless-stopped
     depends_on:
@@ -51,6 +56,9 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      # Token de onboarding: libera a criação do PRIMEIRO administrador em /setup.
+      # Necessário apenas até o admin existir; depois pode ser removido do .env.
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
       AWS_REGION: ${AWS_REGION:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
