@@ -10,6 +10,8 @@ export default defineConfig({
     environment: "node",
     globals: true,
     include: ["**/*.{test,spec}.{ts,tsx,js,mjs}"],
-    exclude: ["node_modules", ".next", "out"],
+    // Os testes de integração exigem um Postgres real e são executados por
+    // `npm run test:integration` (vitest.integration.config.mts).
+    exclude: ["node_modules", ".next", "out", "tests/integration/**"],
   },
 });

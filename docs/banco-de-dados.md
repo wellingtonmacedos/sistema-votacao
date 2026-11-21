@@ -156,3 +156,38 @@ Mantenha uma cópia off-site (os arquivos são criptografados, então podem sair
 ```
 docker cp sistema-votacao-backup:/backups ./backups
 ```
+
+## Testes
+
+A suíte padrão é unitária (com mocks, sem banco):
+
+```
+npm test
+```
+
+Os **testes de integração** (`tests/integration/`) exercitam os route handlers contra um
+PostgreSQL **real**, cobrindo o fluxo completo (criar sessão → iniciar → presença → votar →
+encerrar). Eles **truncam as tabelas** entre os casos, portanto exigem um banco
+**descartável** — nunca aponte `TEST_DATABASE_URL` para o banco de desenvolvimento.
+
+1. Crie o banco de teste (uma única vez):
+   ```
+   createdb -U postgres sistema_votacao_test
+   ```
+   Via Docker (container do compose):
+   ```
+   docker exec sistema-votacao-db createdb -U postgres sistema_votacao_test
+   ```
+2. Defina `TEST_DATABASE_URL` e rode a suíte:
+   - Linux/macOS:
+     ```
+     TEST_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/sistema_votacao_test?schema=public" npm run test:integration
+     ```
+   - Windows (PowerShell):
+     ```powershell
+     $env:TEST_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/sistema_votacao_test?schema=public"; npm run test:integration
+     ```
+
+As migrations são aplicadas automaticamente no banco de teste antes da suíte
+(`prisma migrate deploy`). No CI, os testes de integração rodam contra o Postgres
+efêmero do job.
