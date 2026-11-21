@@ -74,7 +74,7 @@ services:
       retries: 3
       start_period: 40s
 
-  # Serviço de backup criptografado do banco (AES-256-GCM).
+  # Serviço de backup criptografado do banco e dos anexos (AES-256-GCM).
   # Sobe junto com o stack, faz um backup no start e depois a cada
   # BACKUP_INTERVAL_HOURS. Os arquivos ficam no volume nomeado "pgbackups".
   backup:
@@ -92,6 +92,10 @@ services:
       BACKUP_DIR: /backups
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      # Anexos: o mesmo volume montado no app é arquivado (tar+gzip) e cifrado
+      # junto com o dump, garantindo que fotos/PDFs sejam recuperáveis.
+      # Restauração: docker compose run --rm backup node uploads-restore.mjs <arquivo.uploads.tar.gz.enc>
+      UPLOADS_DIR: /uploads
       # Cópia offsite (opcional): defina BACKUP_S3_BUCKET para enviar cada backup
       # (criptografado) ao S3, protegendo contra a perda do host inteiro.
       BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
@@ -101,6 +105,9 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
     volumes:
       - pgbackups:/backups
+      # Acesso de escrita (não :ro) para permitir a restauração dos anexos via
+      # `docker compose run --rm backup node uploads-restore.mjs ...`.
+      - uploads:/uploads
 
 volumes:
   pgdata:

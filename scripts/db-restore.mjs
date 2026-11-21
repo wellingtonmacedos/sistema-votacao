@@ -12,13 +12,15 @@
 //
 // Variáveis: DATABASE_URL, BACKUP_ENCRYPTION_KEY, BACKUP_DIR (opcional),
 //            BACKUP_S3_BUCKET/BACKUP_S3_PREFIX (opcionais, para baixar do S3)
+//
+// Para os anexos (arquivo .uploads.tar.gz.enc), use scripts/uploads-restore.mjs.
 
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { dbEnv, decryptBuffer, loadKey, run, runBackup } from './db-backup.mjs'
+import { dbEnv, decryptBuffer, loadKey, metaPathFor, run, runBackup } from './db-backup.mjs'
 
 async function downloadFromS3(filePath, fileName, dir) {
   const bucket = process.env.BACKUP_S3_BUCKET
@@ -26,8 +28,8 @@ async function downloadFromS3(filePath, fileName, dir) {
   const prefix = (process.env.BACKUP_S3_PREFIX || 'backups').replace(/^\/+|\/+$/g, '')
   const base = path.basename(fileName)
   const key = prefix ? `${prefix}/${base}` : base
-  const metaKey = key.replace(/\.dump\.enc$/, '.meta.json')
-  const metaPath = filePath.replace(/\.dump\.enc$/, '.meta.json')
+  const metaKey = prefix ? `${prefix}/${path.basename(metaPathFor(base))}` : path.basename(metaPathFor(base))
+  const metaPath = metaPathFor(filePath)
 
   await mkdir(dir, { recursive: true })
   console.log(`[restore] Arquivo não encontrado localmente; baixando s3://${bucket}/${key}...`)
@@ -40,7 +42,7 @@ async function downloadFromS3(filePath, fileName, dir) {
 }
 
 async function verifyIntegrity(filePath, payload) {
-  const metaPath = filePath.replace(/\.dump\.enc$/, '.meta.json')
+  const metaPath = metaPathFor(filePath)
   let meta
   try {
     meta = JSON.parse(await readFile(metaPath, 'utf8'))

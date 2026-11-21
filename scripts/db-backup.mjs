@@ -16,15 +16,25 @@
 //   BACKUP_RETENTION_DAYS  (opcional, padrão 7)
 //   BACKUP_INTERVAL_HOURS  (opcional, padrão 24; usado com --loop)
 //
-// Cópia offsite (opcional): se BACKUP_S3_BUCKET estiver definida, o backup
-// (arquivo .dump.enc + .meta.json) é enviado para o S3 via aws-cli após ser
-// gravado localmente. Requer AWS_REGION/AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY
-// (ou credenciais de instância). BACKUP_S3_PREFIX define o prefixo (padrão
-// "backups"). A retenção local (BACKUP_RETENTION_DAYS) não apaga o S3; aplique
-// as regras de ciclo de vida (lifecycle) no bucket.
+// Anexos (opcional): se UPLOADS_DIR estiver definida e existir, o mesmo fluxo é
+// aplicado ao diretório de anexos — tar+gzip -> AES-256-GCM -> grava
+// <timestamp>.uploads.tar.gz.enc (+ .meta.json). Assim fotos e PDFs enviados
+// (que vivem no volume "uploads") são recuperáveis junto com o banco. No
+// docker-compose aponte UPLOADS_DIR=/uploads (o volume é montado no serviço de
+// backup). Sem UPLOADS_DIR, apenas o banco é copiado. Para restaurar os anexos,
+// use scripts/uploads-restore.mjs.
+//
+// Cópia offsite (opcional): se BACKUP_S3_BUCKET estiver definida, cada arquivo
+// gerado (.dump.enc e, quando houver, .uploads.tar.gz.enc, além dos respectivos
+// .meta.json) é enviado para o S3 via aws-cli após ser gravado localmente.
+// Requer AWS_REGION/AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY (ou credenciais de
+// instância). BACKUP_S3_PREFIX define o prefixo (padrão "backups"). A retenção
+// local (BACKUP_RETENTION_DAYS) não apaga o S3; aplique as regras de ciclo de
+// vida (lifecycle) no bucket.
 
 import { spawn } from 'node:child_process'
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { mkdir, readdir, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -109,6 +119,15 @@ export function run(cmd, args, env, { binary = false } = {}) {
   })
 }
 
+// Caminho do .meta.json correspondente a um arquivo de backup cifrado.
+//   x.dump.enc            -> x.meta.json            (compatível com versões antigas)
+//   x.uploads.tar.gz.enc  -> x.uploads.tar.gz.meta.json
+export function metaPathFor(filePath) {
+  return filePath.endsWith('.dump.enc')
+    ? filePath.replace(/\.dump\.enc$/, '.meta.json')
+    : `${filePath.replace(/\.enc$/, '')}.meta.json`
+}
+
 function timestamp(date = new Date()) {
   const p = (n) => String(n).padStart(2, '0')
   return (
@@ -117,31 +136,82 @@ function timestamp(date = new Date()) {
   )
 }
 
-async function applyRetention(dir, keep) {
-  const files = (await readdir(dir)).filter((f) => f.endsWith('.dump.enc')).sort()
+async function applyRetention(dir, keep, suffix) {
+  const files = (await readdir(dir)).filter((f) => f.endsWith(suffix)).sort()
   const excess = files.slice(0, Math.max(0, files.length - keep))
   for (const file of excess) {
     await unlink(path.join(dir, file)).catch(() => {})
-    await unlink(path.join(dir, file.replace(/\.dump\.enc$/, '.meta.json'))).catch(() => {})
+    await unlink(metaPathFor(path.join(dir, file))).catch(() => {})
   }
   return excess
 }
 
-// Envia o backup (dump + metadados) para o S3 via aws-cli, se configurado.
+// Envia um arquivo de backup (cifrado + metadados) para o S3 via aws-cli.
 async function uploadToS3(filePath) {
   const bucket = process.env.BACKUP_S3_BUCKET
   if (!bucket) return
 
   const prefix = (process.env.BACKUP_S3_PREFIX || 'backups').replace(/^\/+|\/+$/g, '')
   const name = path.basename(filePath)
-  const metaPath = filePath.replace(/\.dump\.enc$/, '.meta.json')
+  const metaPath = metaPathFor(filePath)
 
   const key = prefix ? `${prefix}/${name}` : name
-  const metaKey = key.replace(/\.dump\.enc$/, '.meta.json')
+  const metaKey = prefix ? `${prefix}/${path.basename(metaPath)}` : path.basename(metaPath)
 
   await run('aws', ['s3', 'cp', filePath, `s3://${bucket}/${key}`], process.env)
   await run('aws', ['s3', 'cp', metaPath, `s3://${bucket}/${metaKey}`], process.env)
   console.log(`[backup] Cópia offsite enviada: s3://${bucket}/${key}`)
+}
+
+// Arquiva o diretório de anexos (tar+gzip) e grava cifrado em dir.
+// Retorna o caminho do arquivo gerado, ou null quando não há anexos a copiar.
+async function backupUploads(dir, key, ts) {
+  const uploadsDir = process.env.UPLOADS_DIR
+  if (!uploadsDir) return null
+  if (!existsSync(uploadsDir)) {
+    console.warn(`[backup] UPLOADS_DIR (${uploadsDir}) não encontrado; anexos não serão incluídos.`)
+    return null
+  }
+
+  console.log(`[backup] Arquivando anexos de ${uploadsDir}...`)
+  const archive = await run('tar', ['-czf', '-', '-C', uploadsDir, '.'], process.env, { binary: true })
+  if (archive.length === 0) {
+    console.warn('[backup] Diretório de anexos vazio; nada a arquivar.')
+    return null
+  }
+
+  const encrypted = encryptBuffer(archive, key)
+  const name = `sistema_votacao_${ts}.uploads.tar.gz.enc`
+  const filePath = path.join(dir, name)
+  await writeFile(filePath, encrypted)
+
+  await writeFile(
+    metaPathFor(filePath),
+    JSON.stringify(
+      {
+        file: name,
+        type: 'uploads',
+        source: uploadsDir,
+        createdAt: new Date().toISOString(),
+        sizeBytes: encrypted.length,
+        sha256: createHash('sha256').update(encrypted).digest('hex'),
+        format: 'AES-256-GCM',
+      },
+      null,
+      2
+    )
+  )
+
+  console.log(`[backup] Anexos concluídos: ${filePath} (${encrypted.length} bytes)`)
+  return filePath
+}
+
+// Faz o snapshot cifrado apenas dos anexos (usado como snapshot pré-restauração).
+export async function runUploadsBackup({ subdir } = {}) {
+  const baseDir = process.env.BACKUP_DIR || '/backups'
+  const dir = subdir ? path.join(baseDir, subdir) : baseDir
+  await mkdir(dir, { recursive: true })
+  return backupUploads(dir, loadKey(), timestamp())
 }
 
 export async function runBackup({ subdir } = {}) {
@@ -151,6 +221,7 @@ export async function runBackup({ subdir } = {}) {
 
   const key = loadKey()
   const env = dbEnv()
+  const ts = timestamp()
 
   console.log(`[backup] Executando pg_dump em ${env.PGDATABASE}@${env.PGHOST}...`)
   const dump = await run(
@@ -164,13 +235,13 @@ export async function runBackup({ subdir } = {}) {
   }
 
   const encrypted = encryptBuffer(dump, key)
-  const name = `sistema_votacao_${timestamp()}.dump.enc`
+  const name = `sistema_votacao_${ts}.dump.enc`
   const filePath = path.join(dir, name)
   await writeFile(filePath, encrypted)
 
   const sha256 = createHash('sha256').update(encrypted).digest('hex')
   await writeFile(
-    filePath.replace(/\.dump\.enc$/, '.meta.json'),
+    metaPathFor(filePath),
     JSON.stringify(
       {
         file: name,
@@ -187,10 +258,20 @@ export async function runBackup({ subdir } = {}) {
 
   console.log(`[backup] Concluído: ${filePath} (${encrypted.length} bytes)`)
 
-  if (!subdir) {
-    await uploadToS3(filePath)
+  // Anexos: mesma criptografia, mesmo timestamp (facilita correlacionar com o dump).
+  const uploadsFile = await backupUploads(dir, key, ts)
+  const artifacts = uploadsFile ? [filePath, uploadsFile] : [filePath]
 
-    const removed = await applyRetention(dir, Number(process.env.BACKUP_RETENTION_DAYS || 7))
+  if (!subdir) {
+    for (const artifact of artifacts) {
+      await uploadToS3(artifact)
+    }
+
+    const keep = Number(process.env.BACKUP_RETENTION_DAYS || 7)
+    const removed = [
+      ...(await applyRetention(dir, keep, '.dump.enc')),
+      ...(await applyRetention(dir, keep, '.uploads.tar.gz.enc')),
+    ]
     if (removed.length > 0) {
       console.log(`[backup] Retenção: ${removed.length} backup(s) antigo(s) removido(s).`)
     }

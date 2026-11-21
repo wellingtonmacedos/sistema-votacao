@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "backup:db": "docker compose run --rm backup node db-backup.mjs",
-    "restore:db": "docker compose run --rm backup node db-restore.mjs"
+    "restore:db": "docker compose run --rm backup node db-restore.mjs",
+    "restore:uploads": "docker compose run --rm backup node uploads-restore.mjs"
   },
   "prisma": {
     "seed": "tsx --require dotenv/config scripts/seed.ts"

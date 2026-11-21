@@ -3,13 +3,14 @@
 # Baseada na própria imagem do PostgreSQL 16 para garantir que pg_dump/pg_restore
 # tenham a mesma versão do servidor. O Node é adicionado para a criptografia
 # autenticada (AES-256-GCM) dos arquivos de backup; o aws-cli é usado apenas
-# quando BACKUP_S3_BUCKET está definida (cópia offsite).
+# quando BACKUP_S3_BUCKET está definida (cópia offsite). O "tar" (busybox) é
+# usado para arquivar os anexos do volume "uploads".
 FROM postgres:16-alpine
 
 RUN apk add --no-cache nodejs aws-cli
 
 WORKDIR /app
-COPY scripts/db-backup.mjs scripts/db-restore.mjs ./
+COPY scripts/db-backup.mjs scripts/db-restore.mjs scripts/uploads-restore.mjs ./
 
 # Faz um backup imediatamente e depois a cada BACKUP_INTERVAL_HOURS.
 CMD ["node", "/app/db-backup.mjs", "--loop"]
