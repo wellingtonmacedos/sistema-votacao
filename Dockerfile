@@ -24,6 +24,11 @@ ENV NEXT_PUBLIC_ORG_NAME=$NEXT_PUBLIC_ORG_NAME
 # Placeholder apenas para o build: lib/db.ts valida a variável ao ser importado pelos
 # route handlers. O valor real é injetado em runtime pelo ambiente de deploy.
 ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
+# Teto de heap do Node durante o build. O `next build` estoura o heap padrão
+# (cerca de 0,5 GB) em servidores pequenos (1 vCPU / 1 GB), que precisam de swap
+# para concluir. Um teto maior evita o erro "JavaScript heap out of memory".
+ARG NODE_OPTIONS="--max-old-space-size=4096"
+ENV NODE_OPTIONS=$NODE_OPTIONS
 RUN npx prisma generate && npm run build
 
 FROM base AS runner
