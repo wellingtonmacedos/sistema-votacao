@@ -302,7 +302,7 @@ function ConsideracoesFinaisTab() {
   return (
     <div className="space-y-6">
       {/* Controles de inscrições */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <h3 className="text-lg font-semibold">Gerenciar Solicitações de Fala</h3>
           <Badge 
@@ -312,11 +312,11 @@ function ConsideracoesFinaisTab() {
             {sessionStatus?.isSpeechRequestsOpen ? "Inscrições Abertas" : "Inscrições Fechadas"}
           </Badge>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-2 lg:flex-row">
           <Button
             variant={sessionStatus?.isSpeechRequestsOpen ? "destructive" : "default"}
             onClick={handleToggleSpeechRequests}
-            className="w-full sm:w-auto"
+            className="w-full lg:w-auto"
           >
             {sessionStatus?.isSpeechRequestsOpen ? (
               <>
@@ -332,7 +332,7 @@ function ConsideracoesFinaisTab() {
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full lg:w-auto">
                 <UserPlus className="h-4 w-4 mr-1" />
                 Cadastrar Vereador
               </Button>
@@ -365,9 +365,9 @@ function ConsideracoesFinaisTab() {
                     placeholder="Ex: Questões sobre obras públicas"
                   />
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button onClick={handleAddSpeechRequest}>Cadastrar</Button>
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+                <div className="flex flex-col gap-2 lg:flex-row">
+                  <Button className="w-full lg:w-auto" onClick={handleAddSpeechRequest}>Cadastrar</Button>
+                  <Button className="w-full lg:w-auto" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
                 </div>
               </div>
             </DialogContent>
@@ -381,7 +381,7 @@ function ConsideracoesFinaisTab() {
           <p className="text-gray-500 text-center py-8">Nenhuma solicitação de fala ainda</p>
         ) : (
           speechRequests.map((request) => (
-            <div key={request.id} className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg">
+            <div key={request.id} className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between p-4 border rounded-lg">
               <div>
                 <h4 className="font-medium">{request.subject}</h4>
                 <p className="text-sm text-gray-600">
@@ -728,7 +728,7 @@ function TribunaLivreTab() {
   return (
     <div className="space-y-6">
       {/* Controles de inscrições */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <h3 className="text-lg font-semibold">Gerenciar Tribuna Livre</h3>
           <Badge 
@@ -738,12 +738,12 @@ function TribunaLivreTab() {
             {sessionStatus?.isSpeechRequestsOpen ? "Inscrições Abertas" : "Inscrições Fechadas"}
           </Badge>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-2 lg:flex-row">
           <Button
             variant={sessionStatus?.isSpeechRequestsOpen ? "destructive" : "default"}
             onClick={handleToggleSpeechRequests}
             className={cn(
-              "w-full sm:w-auto",
+              "w-full lg:w-auto",
               !sessionStatus?.isSpeechRequestsOpen && "bg-yellow-600 hover:bg-yellow-700"
             )}
           >
@@ -761,7 +761,7 @@ function TribunaLivreTab() {
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full lg:w-auto">
                 <UserPlus className="h-4 w-4 mr-1" />
                 Cadastrar Cidadão
               </Button>
@@ -797,11 +797,11 @@ function TribunaLivreTab() {
                     rows={3}
                   />
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button onClick={handleAddSpeechRequest} className="bg-yellow-600 hover:bg-yellow-700" disabled={!selectedUser || !manifestationSubject}>
+                <div className="flex flex-col gap-2 lg:flex-row">
+                  <Button onClick={handleAddSpeechRequest} className="w-full bg-yellow-600 hover:bg-yellow-700 lg:w-auto" disabled={!selectedUser || !manifestationSubject}>
                     Cadastrar
                   </Button>
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+                  <Button className="w-full lg:w-auto" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
                 </div>
               </div>
             </DialogContent>
@@ -815,7 +815,7 @@ function TribunaLivreTab() {
           <p className="text-gray-500 text-center py-8">Nenhuma manifestação agendada ainda</p>
         ) : (
           speechRequests.map((request) => (
-            <div key={request.id} className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg border-yellow-200 bg-yellow-50/30">
+            <div key={request.id} className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between p-4 border rounded-lg border-yellow-200 bg-yellow-50/30">
               <div>
                 <h4 className="font-medium">{request.subject}</h4>
                 <p className="text-sm text-gray-600">
@@ -1755,7 +1755,7 @@ function VereadoresTab() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 text-blue-600" />
             Cadastro e Gestão de Vereadores
@@ -1768,12 +1768,12 @@ function VereadoresTab() {
             }
           }}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
+              <Button className="bg-blue-600 hover:bg-blue-700 w-full lg:w-auto">
                 <UserPlus className="h-4 w-4 mr-2" />
                 Novo Usuário
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
+            <DialogContent className="w-[calc(100vw-2rem)] max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
               <DialogHeader>
                 <DialogTitle>{editingUser ? 'Editar Usuário' : 'Cadastrar Novo Usuário'}</DialogTitle>
               </DialogHeader>
@@ -1932,7 +1932,7 @@ function VereadoresTab() {
           <div className="space-y-3">
             {users.filter(user => user.isActive).map((user) => (
               <div key={user.id} className="p-4 rounded-lg border bg-white">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                   <div className="flex items-center gap-4 min-w-0">
                     {/* Foto do usuário */}
                     <div className="relative flex-shrink-0">
@@ -1974,15 +1974,15 @@ function VereadoresTab() {
                       <p className="text-sm text-gray-500 break-words">{user.email}</p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleEdit(user)}>
+                  <div className="grid w-full grid-cols-2 gap-2 xl:flex xl:w-auto xl:flex-wrap">
+                    <Button variant="outline" size="sm" className="w-full justify-center xl:w-auto" onClick={() => handleEdit(user)}>
                       <Edit className="h-4 w-4 mr-1" />
                       Editar
                     </Button>
                     <Button 
                       variant="outline" 
                       size="sm"
-                      className="text-orange-500 hover:text-orange-700"
+                      className="w-full justify-center text-orange-500 hover:text-orange-700 xl:w-auto"
                       onClick={() => handleToggleActive(user)}
                     >
                       Desativar
@@ -1990,7 +1990,7 @@ function VereadoresTab() {
                     <Button 
                       variant="outline" 
                       size="sm"
-                      className="text-red-600 hover:text-red-800 border-red-200 hover:bg-red-50"
+                      className="col-span-2 w-full justify-center text-red-600 hover:text-red-800 border-red-200 hover:bg-red-50 xl:col-span-1 xl:w-auto"
                       onClick={() => handleDeleteUser(user)}
                     >
                       <Trash2 className="h-4 w-4 mr-1" />
