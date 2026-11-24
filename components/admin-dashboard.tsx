@@ -302,8 +302,8 @@ function ConsideracoesFinaisTab() {
   return (
     <div className="space-y-6">
       {/* Controles de inscrições */}
-      <div className="flex justify-between items-center gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
           <h3 className="text-lg font-semibold">Gerenciar Solicitações de Fala</h3>
           <Badge 
             variant={sessionStatus?.isSpeechRequestsOpen ? "default" : "secondary"}
@@ -312,10 +312,11 @@ function ConsideracoesFinaisTab() {
             {sessionStatus?.isSpeechRequestsOpen ? "Inscrições Abertas" : "Inscrições Fechadas"}
           </Badge>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button
             variant={sessionStatus?.isSpeechRequestsOpen ? "destructive" : "default"}
             onClick={handleToggleSpeechRequests}
+            className="w-full sm:w-auto"
           >
             {sessionStatus?.isSpeechRequestsOpen ? (
               <>
@@ -331,7 +332,7 @@ function ConsideracoesFinaisTab() {
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className="w-full sm:w-auto">
                 <UserPlus className="h-4 w-4 mr-1" />
                 Cadastrar Vereador
               </Button>
@@ -727,8 +728,8 @@ function TribunaLivreTab() {
   return (
     <div className="space-y-6">
       {/* Controles de inscrições */}
-      <div className="flex justify-between items-center gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
           <h3 className="text-lg font-semibold">Gerenciar Tribuna Livre</h3>
           <Badge 
             variant={sessionStatus?.isSpeechRequestsOpen ? "default" : "secondary"}
@@ -737,11 +738,14 @@ function TribunaLivreTab() {
             {sessionStatus?.isSpeechRequestsOpen ? "Inscrições Abertas" : "Inscrições Fechadas"}
           </Badge>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button
             variant={sessionStatus?.isSpeechRequestsOpen ? "destructive" : "default"}
             onClick={handleToggleSpeechRequests}
-            className={!sessionStatus?.isSpeechRequestsOpen ? "bg-yellow-600 hover:bg-yellow-700" : ""}
+            className={cn(
+              "w-full sm:w-auto",
+              !sessionStatus?.isSpeechRequestsOpen && "bg-yellow-600 hover:bg-yellow-700"
+            )}
           >
             {sessionStatus?.isSpeechRequestsOpen ? (
               <>
@@ -757,7 +761,7 @@ function TribunaLivreTab() {
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className="w-full sm:w-auto">
                 <UserPlus className="h-4 w-4 mr-1" />
                 Cadastrar Cidadão
               </Button>
@@ -1751,7 +1755,7 @@ function VereadoresTab() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 text-blue-600" />
             Cadastro e Gestão de Vereadores
@@ -1764,7 +1768,7 @@ function VereadoresTab() {
             }
           }}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700">
+              <Button className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
                 <UserPlus className="h-4 w-4 mr-2" />
                 Novo Usuário
               </Button>
@@ -1928,8 +1932,8 @@ function VereadoresTab() {
           <div className="space-y-3">
             {users.filter(user => user.isActive).map((user) => (
               <div key={user.id} className="p-4 rounded-lg border bg-white">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-4 min-w-0">
                     {/* Foto do usuário */}
                     <div className="relative flex-shrink-0">
                       {user.photoUrl ? (
@@ -1957,9 +1961,9 @@ function VereadoresTab() {
                         />
                       )}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-semibold">{user.fullName}</h4>
+                        <h4 className="font-semibold break-words">{user.fullName}</h4>
                         {getRoleBadge(user.role)}
                         {user.party && (
                           <Badge variant="outline" className="text-gray-700 border-gray-400 bg-gray-50 font-medium">
@@ -1967,10 +1971,10 @@ function VereadoresTab() {
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500">{user.email}</p>
+                      <p className="text-sm text-gray-500 break-words">{user.email}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => handleEdit(user)}>
                       <Edit className="h-4 w-4 mr-1" />
                       Editar
