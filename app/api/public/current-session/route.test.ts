@@ -71,7 +71,7 @@ describe("GET /api/public/current-session", () => {
       title: "Matéria",
       description: "desc",
       status: "VOTING",
-      creator: { fullName: "Autor", photoUrl: "/a.png" },
+      creator: { fullName: "Autor", photoUrl: "/a.png", role: "PRESIDENT" },
       votes: [{ voteType: "YES" }, { voteType: "YES" }, { voteType: "NO" }, { voteType: "ABSTENTION" }],
     });
     prismaMock.attendance.count.mockResolvedValue(7);
@@ -109,19 +109,33 @@ describe("GET /api/public/current-session", () => {
     });
   });
 
-  it("usa o criador como proponente quando não há autor", async () => {
+  it("usa o criador (vereador/presidente) como proponente quando não há autor", async () => {
     prismaMock.document.findFirst.mockResolvedValue({
       id: "d1",
       title: "Indicação",
       description: "d",
       type: "INDICACAO",
       author: null,
-      creator: { fullName: "Criador", photoUrl: "/c.png" },
+      creator: { fullName: "Criador", photoUrl: "/c.png", role: "COUNCILOR" },
       votes: [],
     });
     const json = await (await GET()).json();
     expect(json.currentVoting.proponent).toEqual({ fullName: "Criador", photoUrl: "/c.png" });
     expect(prismaMock.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it("não usa o administrador como proponente quando não há autor", async () => {
+    prismaMock.document.findFirst.mockResolvedValue({
+      id: "d1",
+      title: "Ofício",
+      description: "d",
+      type: "OFICIO",
+      author: null,
+      creator: { fullName: "Administrador do Sistema", photoUrl: "/a.png", role: "ADMIN" },
+      votes: [],
+    });
+    const json = await (await GET()).json();
+    expect(json.currentVoting.proponent).toBeNull();
   });
 
   it("calcula o tempo restante do cronômetro", async () => {

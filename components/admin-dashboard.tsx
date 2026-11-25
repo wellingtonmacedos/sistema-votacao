@@ -8,7 +8,7 @@ import { Header } from "@/components/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { cn } from "@/lib/utils"
+import { cn, getDisplayName } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -351,7 +351,7 @@ function ConsideracoesFinaisTab() {
                     <SelectContent>
                       {users.map((user) => (
                         <SelectItem key={user.id} value={user.id}>
-                          {user.fullName}
+                          {getDisplayName(user)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -385,7 +385,7 @@ function ConsideracoesFinaisTab() {
               <div>
                 <h4 className="font-medium">{request.subject}</h4>
                 <p className="text-sm text-gray-600">
-                  Solicitado por: {request.user?.fullName || request.citizenName || 'N/A'}
+                  Solicitado por: {request.user ? getDisplayName(request.user) : request.citizenName || 'N/A'}
                 </p>
                 <div className="flex flex-wrap gap-2 mt-2">
                   <Badge variant={request.isApproved ? 'default' : 'secondary'}>
@@ -819,7 +819,7 @@ function TribunaLivreTab() {
               <div>
                 <h4 className="font-medium">{request.subject}</h4>
                 <p className="text-sm text-gray-600">
-                  Solicitado por: {request.user?.fullName || request.citizenName || 'N/A'}
+                  Solicitado por: {request.user ? getDisplayName(request.user) : request.citizenName || 'N/A'}
                 </p>
                 <div className="flex flex-wrap gap-2 mt-2">
                   <Badge variant={request.isApproved ? 'default' : 'secondary'} className={request.isApproved ? 'bg-yellow-600' : ''}>
@@ -1582,6 +1582,7 @@ function VereadoresTab() {
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [formData, setFormData] = useState({
     fullName: '',
+    nickname: '',
     email: '',
     password: '',
     role: 'COUNCILOR' as string,
@@ -1681,7 +1682,7 @@ function VereadoresTab() {
         toast.success(editingUser ? 'Usuário atualizado!' : 'Usuário cadastrado!')
         setIsDialogOpen(false)
         setEditingUser(null)
-        setFormData({ fullName: '', email: '', password: '', role: 'COUNCILOR', party: '', photoUrl: '', partyLogoUrl: '' })
+        setFormData({ fullName: '', nickname: '', email: '', password: '', role: 'COUNCILOR', party: '', photoUrl: '', partyLogoUrl: '' })
         fetchUsers()
       } else {
         const error = await response.json()
@@ -1696,6 +1697,7 @@ function VereadoresTab() {
     setEditingUser(user)
     setFormData({
       fullName: user.fullName,
+      nickname: user.nickname || '',
       email: user.email,
       password: '',
       role: user.role,
@@ -1724,7 +1726,7 @@ function VereadoresTab() {
   }
 
   const handleDeleteUser = async (user: any) => {
-    if (!confirm(`Tem certeza que deseja excluir permanentemente "${user.fullName}"? Esta ação não pode ser desfeita.`)) return
+    if (!confirm(`Tem certeza que deseja excluir permanentemente "${getDisplayName(user)}"? Esta ação não pode ser desfeita.`)) return
 
     try {
       const response = await fetch(`/api/users?id=${user.id}`, {
@@ -1764,7 +1766,7 @@ function VereadoresTab() {
             setIsDialogOpen(open)
             if (!open) {
               setEditingUser(null)
-              setFormData({ fullName: '', email: '', password: '', role: 'COUNCILOR', party: '', photoUrl: '', partyLogoUrl: '' })
+              setFormData({ fullName: '', nickname: '', email: '', password: '', role: 'COUNCILOR', party: '', photoUrl: '', partyLogoUrl: '' })
             }
           }}>
             <DialogTrigger asChild>
@@ -1825,6 +1827,18 @@ function VereadoresTab() {
                   <>
                     <div className="border-t pt-4 mt-2">
                       <h4 className="text-sm font-semibold text-gray-700 mb-3">Informações do Vereador</h4>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Apelido</label>
+                      <Input
+                        value={formData.nickname}
+                        onChange={(e) => setFormData({...formData, nickname: e.target.value})}
+                        placeholder="Ex: Professor João"
+                        maxLength={60}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Nome exibido nos cards do painel e da votação. Sem apelido, usa o nome completo.
+                      </p>
                     </div>
                     <div>
                       <label className="text-sm font-medium">Partido</label>
@@ -1939,7 +1953,7 @@ function VereadoresTab() {
                       {user.photoUrl ? (
                         <img 
                           src={user.photoUrl} 
-                          alt={user.fullName}
+                          alt={getDisplayName(user)}
                           className="w-14 h-14 rounded-full object-cover border-2 border-blue-300 shadow-sm"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none'
@@ -1963,7 +1977,7 @@ function VereadoresTab() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-semibold break-words">{user.fullName}</h4>
+                        <h4 className="font-semibold break-words">{getDisplayName(user)}</h4>
                         {getRoleBadge(user.role)}
                         {user.party && (
                           <Badge variant="outline" className="text-gray-700 border-gray-400 bg-gray-50 font-medium">
@@ -1971,6 +1985,9 @@ function VereadoresTab() {
                           </Badge>
                         )}
                       </div>
+                      {user.nickname && (
+                        <p className="text-sm text-gray-500 break-words">{user.fullName}</p>
+                      )}
                       <p className="text-sm text-gray-500 break-words">{user.email}</p>
                     </div>
                   </div>
@@ -4361,7 +4378,7 @@ export function AdminDashboard() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <h4 className="font-semibold text-gray-900">{attendance.user.fullName}</h4>
+                            <h4 className="font-semibold text-gray-900">{getDisplayName(attendance.user)}</h4>
                             <p className="text-xs text-gray-500">
                               {attendance.user.party || attendance.user.role}
                             </p>
@@ -4965,16 +4982,16 @@ export function AdminDashboard() {
                           {councilor.photoUrl ? (
                             <img 
                               src={councilor.photoUrl} 
-                              alt={councilor.fullName}
+                              alt={getDisplayName(councilor)}
                               className="w-8 h-8 rounded-full object-cover border"
                             />
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-medium">
-                              {councilor.fullName?.split(' ').map((n: string) => n[0]).slice(0, 2).join('')}
+                              {getDisplayName(councilor).split(' ').map((n: string) => n[0]).slice(0, 2).join('')}
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{councilor.fullName}</p>
+                            <p className="text-sm font-medium truncate">{getDisplayName(councilor)}</p>
                             {councilor.party && (
                               <p className="text-xs text-gray-500">{councilor.party}</p>
                             )}
@@ -4993,7 +5010,10 @@ export function AdminDashboard() {
                   <p className="text-xs text-blue-600 mt-2">
                     {documentForm.selectedAuthors.length} selecionado(s): {
                       documentForm.selectedAuthors
-                        .map(id => councilorsForDocument.find(c => c.id === id)?.fullName)
+                        .map(id => {
+                          const councilor = councilorsForDocument.find(c => c.id === id)
+                          return councilor ? getDisplayName(councilor) : undefined
+                        })
                         .filter(Boolean)
                         .join(', ')
                     }
@@ -5158,7 +5178,7 @@ export function AdminDashboard() {
             <div className="space-y-4">
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                 <p className="text-sm font-medium text-amber-900">
-                  {selectedAttendance?.user?.fullName || 'Vereador'}
+                  {selectedAttendance?.user ? getDisplayName(selectedAttendance.user) : 'Vereador'}
                 </p>
                 <p className="text-xs text-amber-700">
                   Registre o motivo da ausência para exibição no painel durante a chamada.

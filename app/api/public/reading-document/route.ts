@@ -32,6 +32,7 @@ export async function GET() {
         creator: {
           select: {
             fullName: true,
+            nickname: true,
             photoUrl: true,
             role: true
           }
@@ -57,6 +58,7 @@ export async function GET() {
           },
           select: {
             fullName: true,
+            nickname: true,
             photoUrl: true
           }
         })
@@ -67,11 +69,15 @@ export async function GET() {
 
         proponent = {
           fullName: normalizedAuthor,
+          nickname: authorNames.length === 1 ? firstMatchedAuthor?.nickname?.trim() || null : null,
           photoUrl: firstMatchedAuthor?.photoUrl || null
         }
-      } else {
+      } else if (readingDocument.creator.role !== 'ADMIN') {
+        // Sem autor informado: usa o criador apenas se for vereador/presidente.
+        // O administrador não deve aparecer como proponente.
         proponent = {
           fullName: readingDocument.creator.fullName,
+          nickname: readingDocument.creator.nickname,
           photoUrl: readingDocument.creator.photoUrl
         }
       }

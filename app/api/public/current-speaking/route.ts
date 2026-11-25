@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
       where: { isSpeaking: true },
       include: {
         user: {
-          select: { id: true, fullName: true }
+          select: { id: true, fullName: true, nickname: true }
         },
         session: {
           select: { id: true, title: true, status: true }

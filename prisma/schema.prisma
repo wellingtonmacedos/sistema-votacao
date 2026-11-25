@@ -52,6 +52,7 @@ model User {
   email           String    @unique
   password        String
   fullName        String
+  nickname        String?   // Apelido (nome de exibição nos cards do vereador/presidente)
   role            UserRole  @default(COUNCILOR)
   isActive        Boolean   @default(true)
   photoUrl        String?   // URL da foto do vereador

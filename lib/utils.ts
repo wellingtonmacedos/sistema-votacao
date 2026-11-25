@@ -12,3 +12,9 @@ export function formatDuration(seconds: number): string {
 
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
 }
+
+// Nome de exibição do vereador/presidente: o apelido (nome de urna) tem
+// precedência sobre o nome completo. Sem apelido, usa o nome completo.
+export function getDisplayName(person: { nickname?: string | null; fullName: string }): string {
+  return person.nickname?.trim() || person.fullName
+}

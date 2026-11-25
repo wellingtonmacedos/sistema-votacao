@@ -41,7 +41,7 @@ export async function PATCH(
       },
       include: {
         user: {
-          select: { id: true, fullName: true }
+          select: { id: true, fullName: true, nickname: true }
         },
         legislativeProcesses: true
       }

@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
         id: true,
         email: true,
         fullName: true,
+        nickname: true,
         role: true,
         isActive: true,
         photoUrl: true,
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const data = parseBody(createUserSchema, body);
-    const { email, fullName, password, role, party, photoUrl, partyLogoUrl } = data;
+    const { email, fullName, nickname, password, role, party, photoUrl, partyLogoUrl } = data;
 
     // Verificar se o email já existe
     const existingUser = await prisma.user.findUnique({
@@ -87,6 +88,7 @@ export async function POST(request: NextRequest) {
       data: {
         email,
         fullName,
+        nickname: nickname || null,
         password: hashedPassword,
         role: role || 'COUNCILOR',
         isActive: true,
@@ -98,6 +100,7 @@ export async function POST(request: NextRequest) {
         id: true,
         email: true,
         fullName: true,
+        nickname: true,
         role: true,
         isActive: true,
         photoUrl: true,
@@ -137,7 +140,7 @@ export async function PATCH(request: NextRequest) {
 
     const body = await request.json();
     const data = parseBody(updateUserSchema, body);
-    const { id, email, fullName, password, role, isActive, party, photoUrl, partyLogoUrl } = data;
+    const { id, email, fullName, nickname, password, role, isActive, party, photoUrl, partyLogoUrl } = data;
 
     const before = await prisma.user.findUnique({ where: { id } });
     if (!before) {
@@ -167,6 +170,7 @@ export async function PATCH(request: NextRequest) {
       updateData.password = await bcrypt.hash(password, 10);
     }
     // Campos de vereador - aceita string vazia para limpar
+    if (nickname !== undefined) updateData.nickname = nickname || null;
     if (party !== undefined) updateData.party = party || null;
     if (photoUrl !== undefined) updateData.photoUrl = photoUrl || null;
     if (partyLogoUrl !== undefined) updateData.partyLogoUrl = partyLogoUrl || null;
@@ -178,6 +182,7 @@ export async function PATCH(request: NextRequest) {
         id: true,
         email: true,
         fullName: true,
+        nickname: true,
         role: true,
         isActive: true,
         photoUrl: true,
@@ -190,6 +195,7 @@ export async function PATCH(request: NextRequest) {
     const changes: string[] = [];
     if (email && email !== before.email) changes.push(`email (${before.email} → ${email})`);
     if (fullName && fullName !== before.fullName) changes.push("nome");
+    if (nickname !== undefined && (nickname || null) !== before.nickname) changes.push("apelido");
     if (role && role !== before.role) changes.push(`perfil (${before.role} → ${role})`);
     if (typeof isActive === "boolean" && isActive !== before.isActive) {
       changes.push(isActive ? "reativado" : "desativado");

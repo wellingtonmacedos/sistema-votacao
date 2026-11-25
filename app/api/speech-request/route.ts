@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           user: {
-            select: { id: true, fullName: true }
+            select: { id: true, fullName: true, nickname: true }
           },
           legislativeProcesses: true
         },
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           user: {
-            select: { id: true, fullName: true }
+            select: { id: true, fullName: true, nickname: true }
           },
           legislativeProcesses: true
         },

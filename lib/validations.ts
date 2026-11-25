@@ -3,6 +3,7 @@ import { z } from "zod";
 export const createUserSchema = z.object({
   email: z.string().email("Email inválido"),
   fullName: z.string().min(2, "Nome deve ter ao menos 2 caracteres"),
+  nickname: z.string().trim().max(60, "Apelido deve ter no máximo 60 caracteres").nullable().optional(),
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
   role: z.enum(["ADMIN", "PRESIDENT", "COUNCILOR"]).optional(),
   party: z.string().nullable().optional(),
@@ -14,6 +15,7 @@ export const updateUserSchema = z.object({
   id: z.string().min(1, "ID é obrigatório"),
   email: z.string().email("Email inválido").optional(),
   fullName: z.string().min(2, "Nome deve ter ao menos 2 caracteres").optional(),
+  nickname: z.string().trim().max(60, "Apelido deve ter no máximo 60 caracteres").nullable().optional(),
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres").optional(),
   role: z.enum(["ADMIN", "PRESIDENT", "COUNCILOR"]).optional(),
   isActive: z.boolean().optional(),

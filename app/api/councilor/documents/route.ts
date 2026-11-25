@@ -53,7 +53,8 @@ export async function GET() {
         createdAt: true,
         creator: {
           select: {
-            fullName: true
+            fullName: true,
+            role: true
           }
         }
       }
@@ -65,7 +66,9 @@ export async function GET() {
         title: document.title,
         type: document.type,
         phase: document.phase,
-        author: document.author || document.creator.fullName,
+        // Sem autor informado: usa o criador apenas se for vereador/presidente.
+        // O administrador não deve aparecer como proponente.
+        author: document.author || (document.creator.role !== 'ADMIN' ? document.creator.fullName : null),
         content: document.content || '',
         attachmentName: document.attachmentName,
         attachmentUrl: document.attachmentUrl,

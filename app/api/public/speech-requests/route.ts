@@ -40,6 +40,7 @@ export async function GET() {
         user: {
           select: {
             fullName: true,
+            nickname: true,
             photoUrl: true,
             party: true,
             partyLogoUrl: true
@@ -54,7 +55,7 @@ export async function GET() {
     // Formatar e separar por tipo
     const formatRequest = (request: typeof speechRequests[number]) => ({
       id: request.id,
-      name: request.user?.fullName || request.citizenName || 'N/A',
+      name: request.user?.nickname?.trim() || request.user?.fullName || request.citizenName || 'N/A',
       party: request.user?.party || 'Vereador',
       partyLogoUrl: request.user?.partyLogoUrl || null,
       photoUrl: request.user?.photoUrl || null,

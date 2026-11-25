@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
 import { Clock, Users, FileText, Vote, User, BookOpen, Mic, CheckCircle } from "lucide-react"
+import { getDisplayName } from "@/lib/utils"
 
 const SHOW_CONSIDERACOES_FINAIS_SPEAKER_CARD: boolean = false
 
@@ -45,6 +46,7 @@ interface CurrentSpeakerData {
   user: {
     id: string
     fullName: string
+    nickname?: string | null
   }
   legislativeProcesses: Array<{
     id: string
@@ -71,6 +73,7 @@ interface AttendanceData {
     user: {
       id: string
       fullName: string
+      nickname?: string | null
       role: string
       photoUrl: string | null
       party: string | null
@@ -100,6 +103,7 @@ interface SpeechRequestData {
 
 interface ProponentData {
   fullName: string
+  nickname?: string | null
   photoUrl: string | null
 }
 
@@ -134,7 +138,7 @@ function ProponentInfo({
   if (compact) {
     return (
       <span className="text-xs text-white/70">
-        Proponente: <span className="font-medium text-white/90">{proponent.fullName}</span>
+        Proponente: <span className="font-medium text-white/90">{getDisplayName(proponent)}</span>
       </span>
     )
   }
@@ -145,7 +149,7 @@ function ProponentInfo({
         {proponent.photoUrl ? (
           <img
             src={proponent.photoUrl}
-            alt={proponent.fullName}
+            alt={getDisplayName(proponent)}
             className="h-full w-full object-cover"
             onError={(e) => {
               e.currentTarget.style.display = 'none'
@@ -155,12 +159,12 @@ function ProponentInfo({
           />
         ) : null}
         <div className={`h-full w-full items-center justify-center bg-gradient-to-br from-cyan-500 to-blue-600 text-sm font-bold text-white ${proponent.photoUrl ? 'hidden' : 'flex'}`}>
-          {getInitials(proponent.fullName)}
+          {getInitials(getDisplayName(proponent))}
         </div>
       </div>
       <div className="min-w-0">
         <div className="text-[10px] uppercase tracking-[0.2em] text-white/50">Proponente</div>
-        <div className="truncate text-sm font-semibold text-white">{proponent.fullName}</div>
+        <div className="truncate text-sm font-semibold text-white">{getDisplayName(proponent)}</div>
       </div>
     </div>
   )
@@ -303,11 +307,18 @@ export function PublicDisplayPanel() {
     // Resetar scroll quando novo documento é exibido
     setScrollPosition(0)
 
-    const interval = setInterval(() => {
-      setScrollPosition(prev => prev + 0.5) // Scroll mais suave
-    }, 50)
+    // Pausa no topo antes de iniciar a rolagem, para dar tempo de ler o início do texto
+    let interval: ReturnType<typeof setInterval> | undefined
+    const startDelay = setTimeout(() => {
+      interval = setInterval(() => {
+        setScrollPosition(prev => prev + 0.3) // Rolagem mais lenta e suave
+      }, 50)
+    }, 3000) // 3 segundos de pausa no topo
 
-    return () => clearInterval(interval)
+    return () => {
+      clearTimeout(startDelay)
+      if (interval) clearInterval(interval)
+    }
   }, [readingDocument?.id])
 
   const getStatusDisplay = (status: string) => {
@@ -344,18 +355,10 @@ export function PublicDisplayPanel() {
   const consideracoesFinaisSpeaking = consideracoesFinais.filter((request) => request.isSpeaking)
   const hasActiveConsideracoesSpeaker = consideracoesFinaisSpeaking.length > 0
   const consideracoesFinaisVisible = hasActiveConsideracoesSpeaker ? consideracoesFinaisSpeaking : consideracoesFinais
-  const readingDocumentProponent = readingDocument?.proponent
-    ? readingDocument.proponent
-    : readingDocument
-      ? {
-          fullName: readingDocument.author?.trim() || readingDocument.creator?.fullName || '',
-          photoUrl:
-            readingDocument.author?.trim() &&
-            readingDocument.author.trim() !== readingDocument.creator?.fullName
-              ? null
-              : readingDocument.creator?.photoUrl || null
-        }
-      : null
+  // O proponente é definido pela API a partir do autor do documento.
+  // Não usamos o criador do registro como fallback, pois o cadastro é feito
+  // pelo administrador e ele não deve aparecer como proponente.
+  const readingDocumentProponent = readingDocument?.proponent ?? null
 
   // Se não houver sessão ativa
   if (!sessionData) {
@@ -500,7 +503,7 @@ export function PublicDisplayPanel() {
                         {attendance.user.photoUrl ? (
                           <img 
                             src={attendance.user.photoUrl}
-                            alt={attendance.user.fullName}
+                            alt={getDisplayName(attendance.user)}
                             className={`w-10 h-10 mx-auto rounded-full object-cover shadow-md ${
                               attendance.isPresent 
                                 ? 'ring-2 ring-emerald-400/60' 
@@ -522,7 +525,7 @@ export function PublicDisplayPanel() {
                               ? 'bg-gradient-to-br from-amber-500 to-yellow-600 ring-2 ring-amber-300/50'
                               : 'bg-gradient-to-br from-gray-500 to-slate-600 ring-2 ring-gray-400/30'
                         } ${attendance.user.photoUrl ? 'hidden' : 'flex'}`}>
-                          {attendance.user.fullName.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                          {getDisplayName(attendance.user).split(' ').map(n => n[0]).slice(0, 2).join('')}
                         </div>
                         
                         {/* Status badge no avatar */}
@@ -535,7 +538,7 @@ export function PublicDisplayPanel() {
                       
                       {/* Nome do vereador - compacto */}
                       <h4 className="font-semibold text-white text-[10px] leading-tight truncate px-0.5">
-                        {attendance.user.fullName.split(' ').slice(0, 2).join(' ').toUpperCase()}
+                        {getDisplayName(attendance.user).toUpperCase()}
                       </h4>
 
                       {/* Partido */}
@@ -741,17 +744,17 @@ export function PublicDisplayPanel() {
                                 {attendance.user.photoUrl ? (
                                   <img 
                                     src={attendance.user.photoUrl} 
-                                    alt={attendance.user.fullName}
+                                    alt={getDisplayName(attendance.user)}
                                     className="w-full h-full object-cover"
                                     onError={(e) => {
                                       // Fallback para iniciais se a imagem falhar
                                       e.currentTarget.style.display = 'none';
-                                      e.currentTarget.parentElement!.innerText = attendance.user.fullName.split(' ').map(n => n[0]).slice(0, 2).join('');
+                                      e.currentTarget.parentElement!.innerText = getDisplayName(attendance.user).split(' ').map(n => n[0]).slice(0, 2).join('');
                                     }}
                                   />
                                 ) : (
                                   <span className="drop-shadow-sm">
-                                    {attendance.user.fullName.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                                    {getDisplayName(attendance.user).split(' ').map(n => n[0]).slice(0, 2).join('')}
                                   </span>
                                 )}
                               </div>
@@ -773,7 +776,7 @@ export function PublicDisplayPanel() {
                             
                             {/* Nome do vereador */}
                             <h4 className="font-bold text-white text-sm leading-tight tracking-wide mb-1">
-                              {attendance.user.fullName.toUpperCase()}
+                              {getDisplayName(attendance.user).toUpperCase()}
                             </h4>
                             
                             {/* Partido e Logo */}
@@ -1313,7 +1316,7 @@ export function PublicDisplayPanel() {
                 <Mic className="h-8 w-8 mr-3 text-green-400" />
                 <div>
                   <h3 className="text-2xl font-bold text-white">
-                    {currentSpeaker.user.fullName}
+                    {getDisplayName(currentSpeaker.user)}
                   </h3>
                   <p className="text-lg opacity-80">
                     Considerações Finais - {currentSpeaker.subject}

@@ -43,14 +43,17 @@ export async function GET() {
       }
     }
 
-    const resolveDocumentProponent = async (author: string | null | undefined, creator: { fullName: string; photoUrl: string | null }) => {
+    const resolveDocumentProponent = async (author: string | null | undefined, creator: { fullName: string; nickname: string | null; photoUrl: string | null; role: string }) => {
       const normalizedAuthor = author?.trim()
 
+      // Sem autor informado: usa o criador apenas se for vereador/presidente.
+      // O administrador não deve aparecer como proponente.
+      const creatorProponent = creator.role !== 'ADMIN'
+        ? { fullName: creator.fullName, nickname: creator.nickname, photoUrl: creator.photoUrl }
+        : null
+
       if (!normalizedAuthor) {
-        return {
-          fullName: creator.fullName,
-          photoUrl: creator.photoUrl
-        }
+        return creatorProponent
       }
 
       const authorNames = normalizedAuthor
@@ -59,10 +62,7 @@ export async function GET() {
         .filter(Boolean)
 
       if (authorNames.length === 0) {
-        return {
-          fullName: creator.fullName,
-          photoUrl: creator.photoUrl
-        }
+        return creatorProponent
       }
 
       const matchedAuthors = await prisma.user.findMany({
@@ -71,6 +71,7 @@ export async function GET() {
         },
         select: {
           fullName: true,
+          nickname: true,
           photoUrl: true
         }
       })
@@ -81,6 +82,7 @@ export async function GET() {
 
       return {
         fullName: normalizedAuthor,
+        nickname: authorNames.length === 1 ? firstMatchedAuthor?.nickname?.trim() || null : null,
         photoUrl: firstMatchedAuthor?.photoUrl || null
       }
     }
@@ -102,7 +104,9 @@ export async function GET() {
         creator: {
           select: {
             fullName: true,
-            photoUrl: true
+            nickname: true,
+            photoUrl: true,
+            role: true
           }
         },
         votes: {
@@ -131,10 +135,13 @@ export async function GET() {
         id: votingMatter.id,
         title: votingMatter.title,
         description: votingMatter.description,
-        proponent: {
-          fullName: votingMatter.creator.fullName,
-          photoUrl: votingMatter.creator.photoUrl
-        },
+        proponent: votingMatter.creator.role !== 'ADMIN'
+          ? {
+              fullName: votingMatter.creator.fullName,
+              nickname: votingMatter.creator.nickname,
+              photoUrl: votingMatter.creator.photoUrl
+            }
+          : null,
         votes: {
           yes: yesVotes,
           no: noVotes,
@@ -154,7 +161,9 @@ export async function GET() {
           creator: {
             select: {
               fullName: true,
-              photoUrl: true
+              nickname: true,
+              photoUrl: true,
+              role: true
             }
           },
           votes: {

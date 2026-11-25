@@ -39,6 +39,7 @@ export async function GET() {
       select: {
         id: true,
         fullName: true,
+        nickname: true,
         role: true,
         photoUrl: true,
         party: true,
@@ -82,6 +83,7 @@ export async function GET() {
         user: {
           id: councilor.id,
           fullName: councilor.fullName,
+          nickname: councilor.nickname || null,
           role: councilor.role,
           photoUrl: councilor.photoUrl || null,
           party: councilor.party || null,
